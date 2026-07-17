@@ -1,0 +1,29 @@
+{
+  "exif": {
+    "success": true,
+    "real_score": {
+      "score": 0,
+      "verdict": "大概率真实",
+      "reasons": []
+    },
+    "ai_score": {
+      "score": 40,
+      "verdict": "不确定",
+      "reasons": [
+        "完全无 EXIF 元数据"
+      ]
+    },
+    "has_clear_difference": true
+  },
+  "huggingface": {
+    "success": false,
+    "error": "<urlopen error [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1032)>"
+  },
+  "deepflag": {
+    "success": false,
+    "reason": "api_docs_unavailable",
+    "web_interface_works": true,
+    "api_documented": false,
+    "recommendation": "不作为生产依赖，改用 HF ViT"
+  }
+}

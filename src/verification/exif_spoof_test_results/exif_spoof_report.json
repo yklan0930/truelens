@@ -1,0 +1,84 @@
+{
+  "test_results": [
+    {
+      "label": "海边照",
+      "filename": "beach.png",
+      "original": {
+        "ai_score": 0.9999,
+        "exif": {
+          "has_exif": true,
+          "fields": 3
+        }
+      },
+      "spoofed": {
+        "ai_score": 0.9923,
+        "exif": {
+          "has_exif": true,
+          "fields": 33
+        }
+      },
+      "spoofed_file": "C:\\Users\\Michael\\WorkBuddy\\2026-07-16-10-54-35\\src\\verification\\exif_spoof_test_results\\beach_fake_exif.jpg"
+    },
+    {
+      "label": "山上照",
+      "filename": "mountain.png",
+      "original": {
+        "ai_score": 0.9998,
+        "exif": {
+          "has_exif": true,
+          "fields": 3
+        }
+      },
+      "spoofed": {
+        "ai_score": 0.9972,
+        "exif": {
+          "has_exif": true,
+          "fields": 33
+        }
+      },
+      "spoofed_file": "C:\\Users\\Michael\\WorkBuddy\\2026-07-16-10-54-35\\src\\verification\\exif_spoof_test_results\\mountain_fake_exif.jpg"
+    }
+  ],
+  "exif_analysis": [
+    {
+      "name": "EXIF 字段数量",
+      "description": "真实手机照片通常有 15-30+ 个 EXIF 字段；AI 生成图片通常 0-3 个",
+      "strategy": "可检测异常"
+    },
+    {
+      "name": "相机型号一致性",
+      "description": "EXIF 中 Make/Model/LensModel 必须一致（如 Apple+iPhone+Apple镜头）",
+      "strategy": "交叉验证"
+    },
+    {
+      "name": "GPS 时间戳",
+      "description": "GPS 时间戳必须与 DateTimeOriginal 一致",
+      "strategy": "时间一致性检查"
+    },
+    {
+      "name": "图像尺寸",
+      "description": "ExifImageWidth/Height 应与实际图片尺寸一致",
+      "strategy": "尺寸不匹配=篡改"
+    },
+    {
+      "name": "软件签名",
+      "description": "AI 工具常在 Software 字段留下痕迹（Midjourney/Stable Diffusion）",
+      "strategy": "软件指纹检测"
+    },
+    {
+      "name": "缩略图匹配",
+      "description": "JPEG EXIF 内嵌缩略图应与主图一致；换 EXIF 后缩略图不匹配",
+      "strategy": "缩略图比对"
+    },
+    {
+      "name": "C2PA 水印",
+      "description": "Adobe Firefly 等在元数据中嵌入 Content Credentials",
+      "strategy": "溯源标记检查"
+    },
+    {
+      "name": "像素级分析",
+      "description": "HF ViT 从像素纹理判断，不受 EXIF 影响",
+      "strategy": "核心防线"
+    }
+  ]
+}

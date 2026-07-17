@@ -1,0 +1,56 @@
+[
+  {
+    "label": "海边照",
+    "filename": "beach.png",
+    "with_watermark": {
+      "ai_score": 0.9999,
+      "scores": {
+        "ai": 0.9999,
+        "hum": 0.0001
+      },
+      "exif": {
+        "has_exif": true,
+        "fields": 3
+      }
+    },
+    "without_watermark": {
+      "ai_score": 0.9989,
+      "scores": {
+        "ai": 0.9989,
+        "hum": 0.0011
+      },
+      "exif": {
+        "has_exif": false,
+        "fields": 0
+      }
+    },
+    "no_watermark_file": "C:\\Users\\Michael\\WorkBuddy\\2026-07-16-10-54-35\\src\\verification\\watermark_test_results\\beach_no_watermark.png"
+  },
+  {
+    "label": "山上照",
+    "filename": "mountain.png",
+    "with_watermark": {
+      "ai_score": 0.9998,
+      "scores": {
+        "ai": 0.9998,
+        "hum": 0.0002
+      },
+      "exif": {
+        "has_exif": true,
+        "fields": 3
+      }
+    },
+    "without_watermark": {
+      "ai_score": 0.9995,
+      "scores": {
+        "ai": 0.9995,
+        "hum": 0.0005
+      },
+      "exif": {
+        "has_exif": false,
+        "fields": 0
+      }
+    },
+    "no_watermark_file": "C:\\Users\\Michael\\WorkBuddy\\2026-07-16-10-54-35\\src\\verification\\watermark_test_results\\mountain_no_watermark.png"
+  }
+]

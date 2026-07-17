@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TrueLens - AI 内容真伪检测平台</title>
+<style>
+:root {
+  --bg: #fafaf8;
+  --surface: #ffffff;
+  --text: #1a1a1a;
+  --text-secondary: #666;
+  --text-tertiary: #999;
+  --border: #e5e5e2;
+  --accent: #185FA5;
+  --accent-light: #E6F1FB;
+  --accent-text: #0C447C;
+  --coral: #D85A30;
+  --coral-light: #FAECE7;
+  --coral-text: #712B13;
+  --green: #1D9E75;
+  --green-light: #E1F5EE;
+  --green-text: #085041;
+  --amber: #BA7517;
+  --amber-light: #FAEEDA;
+  --amber-text: #633806;
+  --radius: 12px;
+  --radius-sm: 8px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans SC", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  font-size: 14px;
+}
+
+.container { max-width: 900px; margin: 0 auto; padding: 48px 24px 64px; }
+
+.header { text-align: center; margin-bottom: 48px; }
+
+.header h1 {
+  font-size: 32px; font-weight: 600; margin-bottom: 8px;
+  letter-spacing: -0.5px;
+}
+
+.header .tagline {
+  font-size: 16px; color: var(--text-secondary); font-weight: 400;
+}
+
+.header .meta {
+  margin-top: 16px; font-size: 13px; color: var(--text-tertiary);
+  display: flex; justify-content: center; gap: 24px; flex-wrap: wrap;
+}
+
+.header .meta span { display: flex; align-items: center; gap: 6px; }
+
+.dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+
+.section-title {
+  font-size: 13px; font-weight: 600; color: var(--text-tertiary);
+  text-transform: uppercase; letter-spacing: 0.8px;
+  margin-bottom: 16px; margin-top: 40px;
+}
+
+/* Partners */
+.partners {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+}
+
+.partner-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 24px;
+  display: flex; align-items: center; gap: 16px;
+}
+
+.partner-avatar {
+  width: 52px; height: 52px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; font-weight: 600; flex-shrink: 0;
+}
+
+.partner-info h3 { font-size: 15px; font-weight: 600; margin-bottom: 2px; }
+.partner-info p { font-size: 13px; color: var(--text-secondary); }
+.partner-role {
+  font-size: 12px; color: var(--text-tertiary); margin-top: 4px;
+}
+
+/* Stats */
+.stats {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+}
+
+.stat-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 20px; text-align: center;
+}
+
+.stat-number { font-size: 28px; font-weight: 600; margin-bottom: 4px; }
+.stat-label { font-size: 12px; color: var(--text-tertiary); }
+
+/* Roadmap */
+.roadmap { position: relative; padding-left: 28px; }
+
+.roadmap::before {
+  content: ''; position: absolute; left: 7px; top: 8px; bottom: 8px;
+  width: 2px; background: var(--border);
+}
+
+.phase {
+  position: relative; margin-bottom: 24px;
+}
+
+.phase::before {
+  content: ''; position: absolute; left: -28px; top: 4px;
+  width: 16px; height: 16px; border-radius: 50%;
+  border: 3px solid var(--surface); box-shadow: 0 0 0 2px var(--border);
+}
+
+.phase.active::before { background: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+.phase.planned::before { background: var(--surface); }
+
+.phase-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 20px;
+}
+
+.phase-card .phase-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 12px;
+}
+
+.phase-card h3 { font-size: 15px; font-weight: 600; }
+.phase-card .phase-time { font-size: 12px; color: var(--text-tertiary); }
+
+.phase-card .phase-desc { font-size: 13px; color: var(--text-secondary); margin-bottom: 12px; }
+
+.phase-tags { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.tag {
+  font-size: 12px; padding: 3px 10px; border-radius: 20px;
+  font-weight: 500;
+}
+
+.tag-blue { background: var(--accent-light); color: var(--accent-text); }
+.tag-coral { background: var(--coral-light); color: var(--coral-text); }
+.tag-green { background: var(--green-light); color: var(--green-text); }
+.tag-amber { background: var(--amber-light); color: var(--amber-text); }
+
+/* Docs */
+.docs {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+}
+
+.doc-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 20px;
+  text-decoration: none; color: var(--text);
+  transition: border-color 0.15s;
+}
+
+.doc-card:hover { border-color: var(--accent); }
+
+.doc-card h3 { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+.doc-card p { font-size: 13px; color: var(--text-secondary); }
+.doc-card .doc-arrow { font-size: 13px; color: var(--text-tertiary); margin-top: 8px; }
+
+/* Revenue */
+.revenue-model {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); overflow: hidden;
+}
+
+.revenue-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 16px 20px; border-bottom: 1px solid var(--border);
+}
+
+.revenue-row:last-child { border-bottom: none; }
+
+.revenue-row .tier-name { font-weight: 500; font-size: 14px; }
+.revenue-row .tier-price { font-size: 14px; color: var(--text-secondary); }
+.revenue-row .tier-desc { font-size: 12px; color: var(--text-tertiary); }
+
+.revenue-row.highlight {
+  background: var(--accent-light);
+}
+
+.revenue-row.highlight .tier-name { color: var(--accent-text); }
+
+/* Footer */
+.footer {
+  text-align: center; margin-top: 48px; padding-top: 24px;
+  border-top: 1px solid var(--border);
+  font-size: 12px; color: var(--text-tertiary);
+}
+
+@media (max-width: 640px) {
+  .partners, .docs { grid-template-columns: 1fr; }
+  .stats { grid-template-columns: repeat(2, 1fr); }
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <h1>TrueLens</h1>
+    <p class="tagline">AI 内容真伪检测平台 — 辨识真实，守护信任</p>
+    <div class="meta">
+      <span><span class="dot" style="background: var(--green);"></span>2026年7月16日 启动</span>
+      <span><span class="dot" style="background: var(--accent);"></span>上海 / 太原</span>
+      <span><span class="dot" style="background: var(--coral);"></span>OPC 一人公司</span>
+    </div>
+  </div>
+
+  <div class="section-title">合伙人</div>
+  <div class="partners">
+    <div class="partner-card">
+      <div class="partner-avatar" style="background: var(--accent-light); color: var(--accent-text);">M</div>
+      <div class="partner-info">
+        <h3>Michael</h3>
+        <p>人类合伙人</p>
+        <div class="partner-role">战略决策 / 产品方向 / 市场拓展</div>
+      </div>
+    </div>
+    <div class="partner-card">
+      <div class="partner-avatar" style="background: var(--coral-light); color: var(--coral-text);">毕</div>
+      <div class="partner-info">
+        <h3>小毕</h3>
+        <p>AI 合伙人</p>
+        <div class="partner-role">技术研发 / 数据分析 / 自动化运营</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-title">关键数据</div>
+  <div class="stats">
+    <div class="stat-card">
+      <div class="stat-number" style="color: var(--accent);">85-98%</div>
+      <div class="stat-label">图片检测准确率</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-number" style="color: var(--green);">80-96%</div>
+      <div class="stat-label">视频检测准确率</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-number" style="color: var(--coral);">~60</div>
+      <div class="stat-label">启动成本 (RMB/年)</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-number" style="color: var(--amber);">15-20</div>
+      <div class="stat-label">盈亏平衡用户数</div>
+    </div>
+  </div>
+
+  <div class="section-title">产品路线图</div>
+  <div class="roadmap">
+    <div class="phase active">
+      <div class="phase-card">
+        <div class="phase-header">
+          <h3>第一阶段：图片检测 MVP</h3>
+          <span class="phase-time">第 1-4 周</span>
+        </div>
+        <p class="phase-desc">上线图片检测 Web 应用，验证市场需求。使用免费开源方案，启动成本接近零。</p>
+        <div class="phase-tags">
+          <span class="tag tag-blue">图片上传检测</span>
+          <span class="tag tag-blue">概率评分</span>
+          <span class="tag tag-green">DeepFlag API</span>
+          <span class="tag tag-green">Hugging Face</span>
+          <span class="tag tag-amber">Next.js</span>
+        </div>
+      </div>
+    </div>
+    <div class="phase planned">
+      <div class="phase-card">
+        <div class="phase-header">
+          <h3>第二阶段：视频检测 + 用户系统</h3>
+          <span class="phase-time">第 5-10 周</span>
+        </div>
+        <p class="phase-desc">增加视频检测能力，建立用户系统，开放 API 接口，发布 Chrome 扩展。</p>
+        <div class="phase-tags">
+          <span class="tag tag-coral">视频检测</span>
+          <span class="tag tag-coral">用户系统</span>
+          <span class="tag tag-amber">Chrome 扩展</span>
+          <span class="tag tag-blue">API 开放</span>
+        </div>
+      </div>
+    </div>
+    <div class="phase planned">
+      <div class="phase-card">
+        <div class="phase-header">
+          <h3>第三阶段：商业化 + 规模化</h3>
+          <span class="phase-time">第 11-20 周</span>
+        </div>
+        <p class="phase-desc">付费订阅上线，批量检测，实时视频流检测，移动端适配，目标月收入破万。</p>
+        <div class="phase-tags">
+          <span class="tag tag-green">付费订阅</span>
+          <span class="tag tag-green">批量检测</span>
+          <span class="tag tag-blue">API 按量计费</span>
+          <span class="tag tag-amber">PWA</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-title">收入模型</div>
+  <div class="revenue-model">
+    <div class="revenue-row">
+      <div>
+        <div class="tier-name">Free</div>
+        <div class="tier-desc">1次/天，图片检测，基础报告</div>
+      </div>
+      <div class="tier-price">免费</div>
+    </div>
+    <div class="revenue-row highlight">
+      <div>
+        <div class="tier-name">Pro</div>
+        <div class="tier-desc">无限检测，图片+视频，详细报告，历史导出</div>
+      </div>
+      <div class="tier-price">39 元/月</div>
+    </div>
+    <div class="revenue-row">
+      <div>
+        <div class="tier-name">Business</div>
+        <div class="tier-desc">API 10,000次/月，批量检测，团队协作</div>
+      </div>
+      <div class="tier-price">199 元/月</div>
+    </div>
+    <div class="revenue-row">
+      <div>
+        <div class="tier-name">Enterprise</div>
+        <div class="tier-desc">私有部署，定制模型，SLA 保障</div>
+      </div>
+      <div class="tier-price">定制报价</div>
+    </div>
+  </div>
+
+  <div class="section-title">项目文档</div>
+  <div class="docs">
+    <a class="doc-card" href="docs/founding-conversation.md">
+      <h3>创始对话纪要</h3>
+      <p>这个项目是怎么聊出来的 — Michael 与小毕的第一次正式讨论</p>
+      <div class="doc-arrow">查看 -></div>
+    </a>
+    <a class="doc-card" href="docs/tech-research.md">
+      <h3>技术调研报告</h3>
+      <p>6 大开源方案 + 6 大商业 API 对比，含技术原理和性价比分析</p>
+      <div class="doc-arrow">查看 -></div>
+    </a>
+    <a class="doc-card" href="docs/roadmap.md">
+      <h3>产品路线图</h3>
+      <p>三阶段开发计划，从 MVP 到月收入破万的完整路径</p>
+      <div class="doc-arrow">查看 -></div>
+    </a>
+    <a class="doc-card" href="docs/business-model.md">
+      <h3>商业模式设计</h3>
+      <p>收入模型、成本结构、盈亏平衡分析和竞争策略</p>
+      <div class="doc-arrow">查看 -></div>
+    </a>
+  </div>
+
+  <div class="footer">
+    TrueLens (c) 2026 Michael & 小毕 | OPC 合伙项目 | 上海 / 太原
+  </div>
+
+</div>
+</body>
+</html>
