@@ -137,7 +137,7 @@ export async function analyzeExif(
     evidence.push({
       type: "real",
       label: "包含 GPS 定位",
-      detail: `经纬度：${exifData.GPSLatitude?.toFixed(4)}, ${exifData.GPSLongitude?.toFixed(4)}`,
+      detail: `经纬度：${(exifData.GPSLatitude as number)?.toFixed(4)}, ${(exifData.GPSLongitude as number)?.toFixed(4)}`,
     });
   }
 
