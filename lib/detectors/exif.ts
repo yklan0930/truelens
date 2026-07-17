@@ -61,7 +61,7 @@ export async function analyzeExif(
   try {
     exifData = await exifr.parse(imageBuffer, {
       iptc: true,
-      ifd0: true,
+      ifd0: {},
       exif: true,
       gps: true,
     });
