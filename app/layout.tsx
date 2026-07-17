@@ -1,12 +1,24 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import SWRegister from "./sw-register";
+import I18nProvider from "./providers";
 
 export const metadata: Metadata = {
-  title: "TrueLens — AI 图片真伪检测",
+  title: "TrueLens — AI Image Authenticity Detection",
   description:
-    "上传图片，秒级判断是真人拍摄还是 AI 生成。基于深度学习模型 + EXIF 元数据分析，给出概率评分和证据。",
-  keywords: ["AI检测", "图片真伪", "deepfake", "AI生成检测", "TrueLens", "AI图片识别"],
+    "Upload an image and instantly determine if it's a real photo or AI-generated. Based on deep learning + EXIF metadata analysis.",
+  keywords: [
+    "AI detection",
+    "image authenticity",
+    "deepfake",
+    "AI-generated",
+    "TrueLens",
+    "AI image recognition",
+    "AI检测",
+    "图片真伪",
+    "AI生成检测",
+    "AI图片识别",
+  ],
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
@@ -22,16 +34,18 @@ export const metadata: Metadata = {
     apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
   },
   openGraph: {
-    title: "TrueLens — AI 图片真伪检测",
-    description: "秒级判断图片是真人拍摄还是 AI 生成，给出概率评分和证据。",
+    title: "TrueLens — AI Image Authenticity Detection",
+    description:
+      "Instantly determine if an image is real or AI-generated, with probability scores and evidence.",
     type: "website",
-    locale: "zh_CN",
+    locale: "en_US",
     siteName: "TrueLens",
   },
   twitter: {
     card: "summary_large_image",
-    title: "TrueLens — AI 图片真伪检测",
-    description: "秒级判断图片是真人拍摄还是 AI 生成，给出概率评分和证据。",
+    title: "TrueLens — AI Image Authenticity Detection",
+    description:
+      "Instantly determine if an image is real or AI-generated, with probability scores and evidence.",
   },
   robots: {
     index: true,
@@ -52,9 +66,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="zh-CN">
+    <html lang="en">
       <body>
-        {children}
+        <I18nProvider>{children}</I18nProvider>
         <SWRegister />
       </body>
     </html>

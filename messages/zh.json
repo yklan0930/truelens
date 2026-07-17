@@ -1,0 +1,158 @@
+{
+  "common": {
+    "brand": "TrueLens",
+    "tagline": "AI 图片真伪检测",
+    "loading": "检测中..."
+  },
+  "header": {
+    "hideHistory": "隐藏历史",
+    "showHistory": "检测历史",
+    "quotaRemaining": "今日剩余 {quota} 次",
+    "quotaExhausted": "今日次数已用完"
+  },
+  "hero": {
+    "title": "这张图片是真人拍的，还是 AI 生成的？",
+    "description": "上传图片，TrueLens 用深度学习模型 + 元数据分析给出 AI 生成概率和证据。准确率 88.9%，秒级出结果。"
+  },
+  "upload": {
+    "dropHint": "点击上传或拍照",
+    "selectImage": "选择图片",
+    "takePhoto": "拍照",
+    "supportedFormats": "支持 JPG、PNG、WebP，最大 10MB",
+    "quotaExhaustedHint": "今日免费次数已用完，检测结果仅供参考",
+    "fileName": "文件名",
+    "quotaInfo": "检测后将消耗今日免费额度，剩余 {quota} 次",
+    "quotaExhaustedBtn": "今日免费次数已用完，仍可检测但建议升级 Pro",
+    "detect": "开始检测",
+    "changeImage": "换一张"
+  },
+  "history": {
+    "title": "检测历史（最近 {count} 次）",
+    "clear": "清除历史",
+    "justNow": "刚刚",
+    "minutesAgo": "{n} 分钟前",
+    "hoursAgo": "{n} 小时前"
+  },
+  "result": {
+    "verdict_ai": "可能是 AI 生成",
+    "verdict_real": "可能是真实照片",
+    "verdict_uncertain": "无法确定",
+    "verdict_ai_share": "🤖 可能是 AI 生成",
+    "verdict_real_share": "📸 可能是真实照片",
+    "verdict_uncertain_share": "❓ 无法确定",
+    "confidence": "置信度 {value}%",
+    "aiProbability": "AI 生成概率",
+    "prob_real": "真实照片",
+    "prob_ai": "AI 生成",
+    "evidenceTitle": "检测证据",
+    "fileSize": "文件大小：{size} KB",
+    "processingTime": "检测耗时：{ms}ms",
+    "disclaimer": "TrueLens 结果仅供参考，不作为法律证据。AI 检测技术仍在发展中，可能存在误判。"
+  },
+  "share": {
+    "shareResult": "分享结果",
+    "generating": "生成中...",
+    "copied": "已复制 ✓",
+    "copyText": "复制文字",
+    "copySuccess": "已复制到剪贴板，粘贴到微信/朋友圈即可分享",
+    "title": "TrueLens AI 检测结果",
+    "textTemplate": "{aiProbability}% AI 生成概率 — {verdict}",
+    "copyTemplate": "🔍 TrueLens AI 检测结果\n\n📊 AI 生成概率：{aiProbability}%\n🔔 判定：{verdict}\n⚡ 置信度：{confidence}%\n\n🕵️ 立即检测：https://truelens.top",
+    "cardTitle": "🔍 TrueLens",
+    "cardAiProb": "AI 生成概率",
+    "cardConfidence": "置信度 {confidence}% · 耗时 {ms}ms",
+    "cardFooter": "truelens.top · AI 内容真伪检测"
+  },
+  "feedback": {
+    "title": "检测准确吗？",
+    "thanks": "感谢你的反馈！",
+    "thanksDesc": "我们会持续改进检测引擎 💪",
+    "accurate": "准",
+    "inaccurate": "不准",
+    "reportIssue": "反馈问题",
+    "modalTitle": "哪里不准确？",
+    "modalDesc": "告诉我们你的判断，帮助我们改进检测引擎。",
+    "modalPlaceholder": "例如：这是一张真实照片但被判为 AI...",
+    "cancel": "取消",
+    "submit": "提交反馈"
+  },
+  "features": {
+    "deepLearning": {
+      "title": "深度学习",
+      "desc": "ViT 视觉模型分析像素级特征，检测 AI 生成痕迹"
+    },
+    "exifAnalysis": {
+      "title": "元数据分析",
+      "desc": "检查 EXIF 相机信息、GPS、时间戳等元数据完整性"
+    },
+    "fastResult": {
+      "title": "秒级出结果",
+      "desc": "多引擎并行检测，平均 2-3 秒返回概率评分和证据"
+    }
+  },
+  "footer": {
+    "description": "TrueLens — AI 内容真伪检测平台",
+    "copyright": "truelens.top | © 2026 Michael & 小毕",
+    "github": "GitHub",
+    "feedback": "反馈问题"
+  },
+  "evidence": {
+    "no_exif": "无 EXIF 数据",
+    "no_exif_detail_ai": "图片完全不含元数据，AI 生成图片通常如此",
+    "no_exif_detail_real": "图片完全不含元数据，真实相机拍摄的照片通常会有相机信息",
+    "camera_fields_complete": "相机元数据完整",
+    "camera_fields_complete_detail": "检测到 {count} 个相机相关字段：{fields}{suffix}",
+    "camera_fields_few": "元数据较少",
+    "camera_fields_few_detail": "仅检测到 {count} 个相机字段，可能是压缩后的真实照片",
+    "no_camera_info": "缺少相机信息",
+    "no_camera_info_detail": "未检测到任何相机品牌、型号、光圈等元数据",
+    "gps_found": "包含 GPS 定位",
+    "gps_found_detail": "经纬度：{lat}, {lng}",
+    "datetime_found": "包含拍摄时间",
+    "datetime_found_detail": "拍摄时间：{date}",
+    "ai_software": "检测到 AI 软件签名",
+    "ai_software_detail": "Software 字段包含：{software}",
+    "software_info": "包含软件信息",
+    "software_info_detail": "Software：{software}",
+    "engine_unavailable": "检测引擎暂时不可用",
+    "engine_unavailable_detail": "所有检测引擎均未返回结果，请稍后重试",
+    "ai_prob_label": "AI 生成概率 {value}%",
+    "real_prob_label": "真实照片概率 {value}%",
+    "hf_model_detail": "SigLIP2 模型分析，置信度 {value}%",
+    "source_vit": "ViT 深度学习模型",
+    "source_exif": "EXIF 元数据"
+  },
+  "errors": {
+    "invalidImage": "请上传图片文件（JPG、PNG、WebP）",
+    "fileTooLarge": "图片大小不能超过 10MB",
+    "quotaExhausted": "今日免费检测次数已用完。升级 Pro 即可无限检测 →",
+    "detectFailed": "检测失败",
+    "timeout": "检测超时，请重试。模型可能正在加载中。",
+    "networkError": "网络连接失败，请检查网络后重试。",
+    "genericError": "检测失败，请重试",
+    "proComing": "Pro 版即将上线：无限检测 + 视频检测 + 详细报告"
+  },
+  "api": {
+    "rateLimit": "请求过于频繁，请稍后再试",
+    "noFile": "请上传图片文件",
+    "unsupportedType": "不支持的文件类型：{type}。仅支持 JPG、PNG、WebP",
+    "fileTooLarge": "图片大小不能超过 10MB",
+    "fileTooSmall": "图片文件过小，可能已损坏",
+    "noEngine": "服务器未配置检测引擎",
+    "unknownError": "检测过程中发生未知错误",
+    "modelLoading": "模型正在加载中，请等待几秒后重试",
+    "hfApiError": "HF API 错误 ({status}): {error}",
+    "hfFormatError": "HF API 返回格式异常",
+    "hfMissingFields": "HF API 返回数据缺少必要字段",
+    "hfCallFailed": "HF API 调用失败",
+    "invalidFeedbackType": "无效的反馈类型",
+    "feedbackFailed": "反馈提交失败"
+  },
+  "metadata": {
+    "title": "TrueLens — AI 图片真伪检测",
+    "description": "上传图片，秒级判断是真人拍摄还是 AI 生成。基于深度学习模型 + EXIF 元数据分析，给出概率评分和证据。",
+    "ogTitle": "TrueLens — AI 图片真伪检测",
+    "ogDescription": "秒级判断图片是真人拍摄还是 AI 生成，给出概率评分和证据。",
+    "keywords": "AI检测, 图片真伪, deepfake, AI生成检测, TrueLens, AI图片识别"
+  }
+}

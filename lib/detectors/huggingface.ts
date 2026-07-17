@@ -7,6 +7,8 @@
  * Configures proxy agent from env vars for environments behind a proxy.
  */
 
+import { serverT, type ServerLocale } from "@/lib/i18n/server";
+
 // Use router endpoint — api-inference.huggingface.co has SSL issues in some environments
 const HF_MODEL_URL =
   "https://router.huggingface.co/hf-inference/models/Ateeqq/ai-vs-human-image-detector";
@@ -38,8 +40,12 @@ export interface HFDetectionResult {
 
 export async function detectWithHuggingFace(
   imageBuffer: Buffer,
-  token: string
+  token: string,
+  locale: ServerLocale = "zh"
 ): Promise<HFDetectionResult> {
+  const t = (key: string, params?: Record<string, string | number>) =>
+    serverT(locale, key, params);
+
   ensureProxy();
 
   let lastError: Error | null = null;
@@ -66,25 +72,25 @@ export async function detectWithHuggingFace(
         const errorText = await response.text();
         if (response.status === 503) {
           // Model loading, wait and retry
-          lastError = new Error("模型正在加载中，请等待几秒后重试");
+          lastError = new Error(t("api.modelLoading"));
           await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
           continue;
         }
-        throw new Error(`HF API 错误 (${response.status}): ${errorText}`);
+        throw new Error(t("api.hfApiError", { status: response.status, error: errorText }));
       }
 
       const data = await response.json();
 
       // Response format: [{ "label": "ai", "score": 0.9996 }, { "label": "hum", "score": 0.0004 }]
       if (!Array.isArray(data) || data.length < 2) {
-        throw new Error("HF API 返回格式异常");
+        throw new Error(t("api.hfFormatError"));
       }
 
       const aiResult = data.find((r: { label: string }) => r.label === "ai");
       const humResult = data.find((r: { label: string }) => r.label === "hum");
 
       if (!aiResult || !humResult) {
-        throw new Error("HF API 返回数据缺少必要字段");
+        throw new Error(t("api.hfMissingFields"));
       }
 
       return {
@@ -100,5 +106,5 @@ export async function detectWithHuggingFace(
     }
   }
 
-  throw lastError || new Error("HF API 调用失败");
+  throw lastError || new Error(t("api.hfCallFailed"));
 }

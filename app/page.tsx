@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import { useT, useLocale, type Locale } from "@/lib/i18n/context";
 
 interface Evidence {
   source: string;
@@ -83,7 +84,11 @@ function clearHistory() {
 }
 
 // --- Share card generator ---
-async function generateShareCard(result: DetectionResult): Promise<Blob> {
+async function generateShareCard(
+  result: DetectionResult,
+  t: (key: string, params?: Record<string, string | number>) => string,
+  locale: Locale
+): Promise<Blob> {
   const canvas = document.createElement("canvas");
   canvas.width = 600;
   canvas.height = 400;
@@ -101,15 +106,16 @@ async function generateShareCard(result: DetectionResult): Promise<Blob> {
   // TrueLens logo
   ctx.fillStyle = "rgba(255,255,255,0.9)";
   ctx.font = "bold 20px system-ui, sans-serif";
-  ctx.fillText("🔍 TrueLens", 30, 45);
+  ctx.fillText(t("share.cardTitle"), 30, 45);
 
   // Verdict
-  const verdictText =
+  const verdictKey =
     result.verdict === "likely_ai"
-      ? "🤖 可能是 AI 生成"
+      ? "result.verdict_ai_share"
       : result.verdict === "likely_real"
-      ? "📸 可能是真实照片"
-      : "❓ 无法确定";
+        ? "result.verdict_real_share"
+        : "result.verdict_uncertain_share";
+  const verdictText = t(verdictKey);
 
   ctx.fillStyle = "white";
   ctx.font = "bold 28px system-ui, sans-serif";
@@ -123,7 +129,7 @@ async function generateShareCard(result: DetectionResult): Promise<Blob> {
 
   ctx.fillStyle = "rgba(255,255,255,0.7)";
   ctx.font = "16px system-ui, sans-serif";
-  ctx.fillText("AI 生成概率", 30, 230);
+  ctx.fillText(t("share.cardAiProb"), 30, 230);
 
   // Evidence summary
   ctx.fillStyle = "rgba(255,255,255,0.6)";
@@ -136,14 +142,19 @@ async function generateShareCard(result: DetectionResult): Promise<Blob> {
   });
 
   // Confidence
-  ctx.fillText(`置信度 ${result.confidence}% · 耗时 ${result.processingTimeMs}ms`, 30, y + 8);
+  const confY = y > 305 ? y + 8 : 305;
+  ctx.fillText(
+    t("share.cardConfidence", { confidence: result.confidence, ms: result.processingTimeMs }),
+    30,
+    confY
+  );
 
   // Bottom bar
   ctx.fillStyle = "rgba(0,0,0,0.3)";
   ctx.fillRect(0, 360, 600, 40);
   ctx.fillStyle = "rgba(255,255,255,0.6)";
   ctx.font = "12px system-ui, sans-serif";
-  ctx.fillText("truelens.top · AI 内容真伪检测", 30, 386);
+  ctx.fillText(t("share.cardFooter"), 30, 386);
 
   return new Promise((resolve) => {
     canvas.toBlob((blob) => resolve(blob!), "image/png");
@@ -151,6 +162,9 @@ async function generateShareCard(result: DetectionResult): Promise<Blob> {
 }
 
 export default function Home() {
+  const t = useT();
+  const { locale, setLocale } = useLocale();
+
   const [image, setImage] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string>("");
   const [loading, setLoading] = useState(false);
@@ -172,27 +186,30 @@ export default function Home() {
     setHistory(getHistory());
   }, []);
 
-  const handleFile = useCallback((file: File) => {
-    if (!file.type.startsWith("image/")) {
-      setError("请上传图片文件（JPG、PNG、WebP）");
-      return;
-    }
-    if (file.size > 10 * 1024 * 1024) {
-      setError("图片大小不能超过 10MB");
-      return;
-    }
+  const handleFile = useCallback(
+    (file: File) => {
+      if (!file.type.startsWith("image/")) {
+        setError(t("errors.invalidImage"));
+        return;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        setError(t("errors.fileTooLarge"));
+        return;
+      }
 
-    setError(null);
-    setResult(null);
-    setFileName(file.name);
-    setFeedbackState("none");
+      setError(null);
+      setResult(null);
+      setFileName(file.name);
+      setFeedbackState("none");
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      setImage(e.target?.result as string);
-    };
-    reader.readAsDataURL(file);
-  }, []);
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setImage(e.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    },
+    [t]
+  );
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
@@ -209,7 +226,7 @@ export default function Home() {
 
     const remaining = getRemainingQuota();
     if (remaining <= 0) {
-      setError("今日免费检测次数已用完。升级 Pro 即可无限检测 →");
+      setError(t("errors.quotaExhausted"));
       return;
     }
 
@@ -231,7 +248,7 @@ export default function Home() {
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error || "检测失败");
+        throw new Error(data.error || t("errors.detectFailed"));
       }
 
       setResult(data.result);
@@ -254,11 +271,11 @@ export default function Home() {
         setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "start" }), 200);
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "检测失败，请重试";
+      const msg = err instanceof Error ? err.message : t("errors.genericError");
       if (msg.includes("AbortError") || msg.includes("abort")) {
-        setError("检测超时，请重试。模型可能正在加载中。");
+        setError(t("errors.timeout"));
       } else if (msg.includes("Failed to fetch") || msg.includes("fetch failed")) {
-        setError("网络连接失败，请检查网络后重试。");
+        setError(t("errors.networkError"));
       } else {
         setError(msg);
       }
@@ -287,19 +304,31 @@ export default function Home() {
     setShareLoading(true);
 
     try {
-      const blob = await generateShareCard(result);
+      const blob = await generateShareCard(result, t, locale);
       const file = new File([blob], "truelens-result.png", { type: "image/png" });
+
+      const verdictText =
+        result.verdict === "likely_ai"
+          ? t("result.verdict_ai")
+          : t("result.verdict_real");
 
       if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({
-          title: "TrueLens AI 检测结果",
-          text: `${result.aiProbability}% AI 生成概率 — ${result.verdict === "likely_ai" ? "可能是 AI 生成" : "可能是真实照片"}`,
+          title: t("share.title"),
+          text: t("share.textTemplate", {
+            aiProbability: result.aiProbability,
+            verdict: verdictText,
+          }),
           url: "https://truelens.top",
           files: [file],
         });
       } else {
         // Fallback: copy text to clipboard
-        const text = `🔍 TrueLens AI 检测结果\n\n📊 AI 生成概率：${result.aiProbability}%\n🔔 判定：${result.verdict === "likely_ai" ? "可能是 AI 生成" : "可能是真实照片"}\n⚡ 置信度：${result.confidence}%\n\n🕵️ 立即检测：https://truelens.top`;
+        const text = t("share.copyTemplate", {
+          aiProbability: result.aiProbability,
+          verdict: verdictText,
+          confidence: result.confidence,
+        });
         await navigator.clipboard.writeText(text);
         setCopied(true);
         setTimeout(() => setCopied(false), 3000);
@@ -364,29 +393,32 @@ export default function Home() {
     setFeedbackMsg("");
   };
 
-  const verdictConfig = {
-    likely_ai: {
-      label: "可能是 AI 生成",
-      color: "text-red-600",
-      bgColor: "bg-red-50",
-      borderColor: "border-red-200",
-      icon: "⚠️",
-    },
-    likely_real: {
-      label: "可能是真实照片",
-      color: "text-green-600",
-      bgColor: "bg-green-50",
-      borderColor: "border-green-200",
-      icon: "✓",
-    },
-    uncertain: {
-      label: "无法确定",
-      color: "text-yellow-600",
-      bgColor: "bg-yellow-50",
-      borderColor: "border-yellow-200",
-      icon: "?",
-    },
-  };
+  const verdictConfig = useMemo(
+    () => ({
+      likely_ai: {
+        label: t("result.verdict_ai"),
+        color: "text-red-600",
+        bgColor: "bg-red-50",
+        borderColor: "border-red-200",
+        icon: "⚠️",
+      },
+      likely_real: {
+        label: t("result.verdict_real"),
+        color: "text-green-600",
+        bgColor: "bg-green-50",
+        borderColor: "border-green-200",
+        icon: "✓",
+      },
+      uncertain: {
+        label: t("result.verdict_uncertain"),
+        color: "text-yellow-600",
+        bgColor: "bg-yellow-50",
+        borderColor: "border-yellow-200",
+        icon: "?",
+      },
+    }),
+    [t]
+  );
 
   const evidenceColor = {
     real: "bg-green-100 text-green-700 border-green-200",
@@ -398,10 +430,14 @@ export default function Home() {
     const d = new Date(ts);
     const now = new Date();
     const diff = now.getTime() - d.getTime();
-    if (diff < 60000) return "刚刚";
-    if (diff < 3600000) return `${Math.floor(diff / 60000)} 分钟前`;
-    if (diff < 86400000) return `${Math.floor(diff / 3600000)} 小时前`;
-    return d.toLocaleDateString("zh-CN");
+    if (diff < 60000) return t("history.justNow");
+    if (diff < 3600000) return t("history.minutesAgo", { n: Math.floor(diff / 60000) });
+    if (diff < 86400000) return t("history.hoursAgo", { n: Math.floor(diff / 3600000) });
+    return d.toLocaleDateString(locale === "zh" ? "zh-CN" : "en-US");
+  };
+
+  const toggleLocale = () => {
+    setLocale(locale === "zh" ? "en" : "zh");
   };
 
   return (
@@ -414,22 +450,33 @@ export default function Home() {
               T
             </div>
             <div className="hidden sm:block">
-              <h1 className="text-xl font-bold text-slate-900">TrueLens</h1>
-              <p className="text-xs text-slate-500">AI 图片真伪检测</p>
+              <h1 className="text-xl font-bold text-slate-900">{t("common.brand")}</h1>
+              <p className="text-xs text-slate-500">{t("common.tagline")}</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
+            {/* Language Switcher */}
+            <button
+              onClick={toggleLocale}
+              className="text-sm font-medium min-h-[44px] px-2 rounded-lg hover:bg-slate-100 transition-colors flex items-center gap-1"
+              title={locale === "zh" ? "Switch to English" : "切换为中文"}
+            >
+              <span>{locale === "zh" ? "EN" : "中文"}</span>
+            </button>
+
             {history.length > 0 && (
               <button
                 onClick={() => setShowHistory(!showHistory)}
                 className="text-sm text-slate-500 hover:text-slate-700 transition-colors min-h-[44px] px-2"
               >
-                {showHistory ? "隐藏历史" : "检测历史"}
+                {showHistory ? t("header.hideHistory") : t("header.showHistory")}
               </button>
             )}
             <div className="text-sm bg-slate-100 rounded-lg px-3 py-1.5">
-              <span className={quota > 0 ? "text-indigo-600 font-semibold" : "text-slate-400"}>
-                今日剩余 {quota} 次
+              <span
+                className={quota > 0 ? "text-indigo-600 font-semibold" : "text-slate-400"}
+              >
+                {t("header.quotaRemaining", { quota })}
               </span>
             </div>
           </div>
@@ -442,13 +489,13 @@ export default function Home() {
           <div className="mb-6 bg-white rounded-2xl shadow-sm border border-slate-200 p-5 animate-in fade-in slide-in-from-top-2 duration-300">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-bold text-slate-900 flex items-center gap-2">
-                <span>📜</span> 检测历史（最近 {history.length} 次）
+                <span>📜</span> {t("history.title", { count: history.length })}
               </h3>
               <button
                 onClick={handleClearHistory}
                 className="text-xs text-slate-400 hover:text-red-500 transition-colors min-h-[44px] px-2"
               >
-                清除历史
+                {t("history.clear")}
               </button>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
@@ -475,8 +522,8 @@ export default function Home() {
                         item.verdict === "likely_ai"
                           ? "text-red-300"
                           : item.verdict === "likely_real"
-                          ? "text-green-300"
-                          : "text-yellow-300"
+                            ? "text-green-300"
+                            : "text-yellow-300"
                       }`}
                     >
                       {item.aiProbability}% AI
@@ -495,11 +542,10 @@ export default function Home() {
         {!image && (
           <div className="text-center mb-6 sm:mb-8">
             <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-3">
-              这张图片是真人拍的，还是 AI 生成的？
+              {t("hero.title")}
             </h2>
             <p className="text-slate-600 max-w-2xl mx-auto text-sm sm:text-base">
-              上传图片，TrueLens 用深度学习模型 + 元数据分析给出 AI 生成概率和证据。
-              准确率 88.9%，秒级出结果。
+              {t("hero.description")}
             </p>
           </div>
         )}
@@ -521,9 +567,7 @@ export default function Home() {
             }`}
           >
             <div className="text-4xl sm:text-5xl mb-4">📸</div>
-            <p className="text-lg font-medium text-slate-700 mb-1">
-              点击上传或拍照
-            </p>
+            <p className="text-lg font-medium text-slate-700 mb-1">{t("upload.dropHint")}</p>
             <div className="flex flex-col sm:flex-row gap-3 mt-3">
               <button
                 className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 px-6 rounded-xl transition-colors min-h-[48px] flex items-center gap-2"
@@ -532,7 +576,7 @@ export default function Home() {
                   fileInputRef.current?.click();
                 }}
               >
-                <span>📁</span> 选择图片
+                <span>📁</span> {t("upload.selectImage")}
               </button>
               <button
                 className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-3 px-6 rounded-xl transition-colors min-h-[48px] flex items-center gap-2 border border-slate-200"
@@ -549,14 +593,12 @@ export default function Home() {
                   input.click();
                 }}
               >
-                <span>📷</span> 拍照
+                <span>📷</span> {t("upload.takePhoto")}
               </button>
             </div>
-            <p className="text-sm text-slate-400 mt-4">支持 JPG、PNG、WebP，最大 10MB</p>
+            <p className="text-sm text-slate-400 mt-4">{t("upload.supportedFormats")}</p>
             {quota === 0 && (
-              <p className="mt-3 text-sm text-orange-500">
-                今日免费次数已用完，检测结果仅供参考
-              </p>
+              <p className="mt-3 text-sm text-orange-500">{t("upload.quotaExhaustedHint")}</p>
             )}
             <input
               ref={fileInputRef}
@@ -580,18 +622,18 @@ export default function Home() {
                 <div className="sm:w-1/2 relative">
                   <img
                     src={image}
-                    alt="待检测图片"
+                    alt="Image to analyze"
                     className="w-full h-56 sm:h-72 object-cover"
                   />
                 </div>
                 <div className="sm:w-1/2 p-5 sm:p-6 flex flex-col justify-between">
                   <div>
-                    <p className="text-sm text-slate-500 mb-1">文件名</p>
+                    <p className="text-sm text-slate-500 mb-1">{t("upload.fileName")}</p>
                     <p className="font-medium text-slate-900 truncate">{fileName}</p>
                     <p className="text-xs text-slate-400 mt-2">
                       {quota > 0
-                        ? `检测后将消耗今日免费额度，剩余 ${quota} 次`
-                        : "今日免费次数已用完，仍可检测但建议升级 Pro"}
+                        ? t("upload.quotaInfo", { quota })
+                        : t("upload.quotaExhaustedBtn")}
                     </p>
                   </div>
                   <div className="mt-4 flex gap-3">
@@ -602,21 +644,36 @@ export default function Home() {
                     >
                       {loading ? (
                         <span className="flex items-center justify-center gap-2">
-                          <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                          <svg
+                            className="animate-spin h-5 w-5"
+                            viewBox="0 0 24 24"
+                          >
+                            <circle
+                              className="opacity-25"
+                              cx="12"
+                              cy="12"
+                              r="10"
+                              stroke="currentColor"
+                              strokeWidth="4"
+                              fill="none"
+                            />
+                            <path
+                              className="opacity-75"
+                              fill="currentColor"
+                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                            />
                           </svg>
-                          检测中...
+                          {t("common.loading")}
                         </span>
                       ) : (
-                        "开始检测"
+                        t("upload.detect")
                       )}
                     </button>
                     <button
                       onClick={handleReset}
                       className="px-5 py-3.5 border border-slate-300 text-slate-700 font-medium rounded-xl hover:bg-slate-50 transition-colors min-h-[48px] shrink-0"
                     >
-                      换一张
+                      {t("upload.changeImage")}
                     </button>
                   </div>
                 </div>
@@ -629,10 +686,8 @@ export default function Home() {
                 <span className="text-lg shrink-0">❌</span>
                 <div>
                   <p>{error}</p>
-                  {error.includes("次数已用完") && (
-                    <p className="mt-2 text-xs text-red-500">
-                      Pro 版即将上线：无限检测 + 视频检测 + 详细报告
-                    </p>
+                  {error.includes(t("errors.quotaExhausted")) && (
+                    <p className="mt-2 text-xs text-red-500">{t("errors.proComing")}</p>
                   )}
                 </div>
               </div>
@@ -649,17 +704,25 @@ export default function Home() {
                 >
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">
-                      <span className="text-3xl">{verdictConfig[result.verdict].icon}</span>
+                      <span className="text-3xl">
+                        {verdictConfig[result.verdict].icon}
+                      </span>
                       <div>
-                        <p className={`text-xl sm:text-2xl font-bold ${verdictConfig[result.verdict].color}`}>
+                        <p
+                          className={`text-xl sm:text-2xl font-bold ${verdictConfig[result.verdict].color}`}
+                        >
                           {verdictConfig[result.verdict].label}
                         </p>
-                        <p className="text-sm text-slate-500">置信度 {result.confidence}%</p>
+                        <p className="text-sm text-slate-500">
+                          {t("result.confidence", { value: result.confidence })}
+                        </p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm text-slate-500">AI 生成概率</p>
-                      <p className={`text-2xl sm:text-3xl font-bold ${result.aiProbability >= 50 ? "text-red-600" : "text-green-600"}`}>
+                      <p className="text-sm text-slate-500">{t("result.aiProbability")}</p>
+                      <p
+                        className={`text-2xl sm:text-3xl font-bold ${result.aiProbability >= 50 ? "text-red-600" : "text-green-600"}`}
+                      >
                         {result.aiProbability}%
                       </p>
                     </div>
@@ -677,8 +740,8 @@ export default function Home() {
                     />
                   </div>
                   <div className="flex justify-between mt-1 text-xs text-slate-400">
-                    <span>真实照片</span>
-                    <span>AI 生成</span>
+                    <span>{t("result.prob_real")}</span>
+                    <span>{t("result.prob_ai")}</span>
                   </div>
                 </div>
 
@@ -690,34 +753,41 @@ export default function Home() {
                       disabled={shareLoading}
                       className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 px-5 rounded-xl transition-colors min-h-[48px]"
                     >
-                      <span>📤</span> {shareLoading ? "生成中..." : copied ? "已复制 ✓" : "分享结果"}
+                      <span>📤</span>{" "}
+                      {shareLoading
+                        ? t("share.generating")
+                        : copied
+                          ? t("share.copied")
+                          : t("share.shareResult")}
                     </button>
                     <button
                       onClick={async () => {
-                        const text = `🔍 TrueLens AI 检测：AI 生成概率 ${result.aiProbability}%\n🕵️ 立即检测：https://truelens.top`;
+                        const verdictText =
+                          result.verdict === "likely_ai"
+                            ? t("result.verdict_ai")
+                            : t("result.verdict_real");
+                        const text = `🔍 TrueLens: AI ${result.aiProbability}% — ${verdictText}\n🕵 ${t("share.copySuccess")} https://truelens.top`;
                         await navigator.clipboard.writeText(text);
                         setCopied(true);
                         setTimeout(() => setCopied(false), 3000);
                       }}
                       className="flex items-center gap-2 text-slate-600 font-medium py-3 px-5 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors min-h-[48px]"
                     >
-                      <span>📋</span> {copied ? "已复制 ✓" : "复制文字"}
+                      <span>📋</span> {copied ? t("share.copied") : t("share.copyText")}
                     </button>
                   </div>
                   {copied && (
-                    <p className="mt-2 text-xs text-green-600">
-                      {copied ? "已复制到剪贴板，粘贴到微信/朋友圈即可分享" : ""}
-                    </p>
+                    <p className="mt-2 text-xs text-green-600">{t("share.copySuccess")}</p>
                   )}
                 </div>
 
                 {/* Feedback */}
                 <div className="bg-white border border-slate-200 rounded-2xl p-5">
                   <p className="text-sm font-medium text-slate-700 mb-3">
-                    {feedbackState === "submitted" ? "感谢你的反馈！" : "检测准确吗？"}
+                    {feedbackState === "submitted" ? t("feedback.thanks") : t("feedback.title")}
                   </p>
                   {feedbackState === "submitted" ? (
-                    <p className="text-sm text-slate-500">我们会持续改进检测引擎 💪</p>
+                    <p className="text-sm text-slate-500">{t("feedback.thanksDesc")}</p>
                   ) : (
                     <div className="flex items-center gap-3">
                       <button
@@ -728,7 +798,7 @@ export default function Home() {
                             : "border-slate-200 hover:border-green-300 hover:bg-green-50"
                         }`}
                       >
-                        👍 准
+                        👍 {t("feedback.accurate")}
                       </button>
                       <button
                         onClick={() => {
@@ -741,7 +811,7 @@ export default function Home() {
                             : "border-slate-200 hover:border-red-300 hover:bg-red-50"
                         }`}
                       >
-                        👎 不准
+                        👎 {t("feedback.inaccurate")}
                       </button>
                       <a
                         href="https://github.com/yklan0930/truelens/issues/new"
@@ -749,7 +819,7 @@ export default function Home() {
                         rel="noopener noreferrer"
                         className="text-sm text-slate-400 hover:text-indigo-500 transition-colors ml-auto min-h-[44px] flex items-center"
                       >
-                        💬 反馈问题
+                        💬 {t("feedback.reportIssue")}
                       </a>
                     </div>
                   )}
@@ -758,7 +828,7 @@ export default function Home() {
                 {/* Evidence */}
                 <div className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6">
                   <h3 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
-                    <span>🔍</span> 检测证据
+                    <span>🔍</span> {t("result.evidenceTitle")}
                   </h3>
                   <div className="space-y-3">
                     {result.evidence.map((ev, i) => (
@@ -776,14 +846,18 @@ export default function Home() {
                   </div>
 
                   <div className="mt-4 pt-4 border-t border-slate-100 flex justify-between text-xs text-slate-400">
-                    <span>文件大小：{(result.fileSize / 1024).toFixed(0)} KB</span>
-                    <span>检测耗时：{result.processingTimeMs}ms</span>
+                    <span>
+                      {t("result.fileSize", { size: (result.fileSize / 1024).toFixed(0) })}
+                    </span>
+                    <span>
+                      {t("result.processingTime", { ms: result.processingTimeMs })}
+                    </span>
                   </div>
                 </div>
 
                 {/* Disclaimer */}
                 <p className="text-xs text-slate-400 text-center px-4">
-                  TrueLens 结果仅供参考，不作为法律证据。AI 检测技术仍在发展中，可能存在误判。
+                  {t("result.disclaimer")}
                 </p>
               </div>
             )}
@@ -795,24 +869,24 @@ export default function Home() {
           <div className="mt-12 grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="bg-white rounded-xl p-5 border border-slate-200">
               <div className="text-2xl mb-2">🧠</div>
-              <h3 className="font-bold text-slate-900 mb-1">深度学习</h3>
-              <p className="text-sm text-slate-500">
-                ViT 视觉模型分析像素级特征，检测 AI 生成痕迹
-              </p>
+              <h3 className="font-bold text-slate-900 mb-1">
+                {t("features.deepLearning.title")}
+              </h3>
+              <p className="text-sm text-slate-500">{t("features.deepLearning.desc")}</p>
             </div>
             <div className="bg-white rounded-xl p-5 border border-slate-200">
               <div className="text-2xl mb-2">📋</div>
-              <h3 className="font-bold text-slate-900 mb-1">元数据分析</h3>
-              <p className="text-sm text-slate-500">
-                检查 EXIF 相机信息、GPS、时间戳等元数据完整性
-              </p>
+              <h3 className="font-bold text-slate-900 mb-1">
+                {t("features.exifAnalysis.title")}
+              </h3>
+              <p className="text-sm text-slate-500">{t("features.exifAnalysis.desc")}</p>
             </div>
             <div className="bg-white rounded-xl p-5 border border-slate-200">
               <div className="text-2xl mb-2">⚡</div>
-              <h3 className="font-bold text-slate-900 mb-1">秒级出结果</h3>
-              <p className="text-sm text-slate-500">
-                多引擎并行检测，平均 2-3 秒返回概率评分和证据
-              </p>
+              <h3 className="font-bold text-slate-900 mb-1">
+                {t("features.fastResult.title")}
+              </h3>
+              <p className="text-sm text-slate-500">{t("features.fastResult.desc")}</p>
             </div>
           </div>
         )}
@@ -823,15 +897,13 @@ export default function Home() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl">
             <h3 className="font-bold text-lg text-slate-900 mb-3">
-              哪里不准确？
+              {t("feedback.modalTitle")}
             </h3>
-            <p className="text-sm text-slate-500 mb-4">
-              告诉我们你的判断，帮助我们改进检测引擎。
-            </p>
+            <p className="text-sm text-slate-500 mb-4">{t("feedback.modalDesc")}</p>
             <textarea
               value={feedbackMsg}
               onChange={(e) => setFeedbackMsg(e.target.value)}
-              placeholder="例如：这是一张真实照片但被判为 AI..."
+              placeholder={t("feedback.modalPlaceholder")}
               className="w-full border border-slate-200 rounded-xl p-3 text-sm min-h-[100px] resize-y focus:outline-none focus:border-indigo-400"
               autoFocus
             />
@@ -844,14 +916,14 @@ export default function Home() {
                 }}
                 className="flex-1 py-3 border border-slate-200 rounded-xl text-slate-600 font-medium min-h-[48px]"
               >
-                取消
+                {t("feedback.cancel")}
               </button>
               <button
                 onClick={submitDetailedFeedback}
                 disabled={!feedbackMsg.trim()}
                 className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white rounded-xl font-medium min-h-[48px]"
               >
-                提交反馈
+                {t("feedback.submit")}
               </button>
             </div>
           </div>
@@ -861,8 +933,8 @@ export default function Home() {
       {/* Footer */}
       <footer className="border-t border-slate-200 mt-12">
         <div className="max-w-4xl mx-auto px-4 py-6 text-center text-sm text-slate-400 space-y-2">
-          <p>TrueLens — AI 内容真伪检测平台</p>
-          <p>truelens.top | © 2026 Michael & 小毕</p>
+          <p>{t("footer.description")}</p>
+          <p>{t("footer.copyright")}</p>
           <div className="flex items-center justify-center gap-4 mt-1">
             <a
               href="https://github.com/yklan0930/truelens"
@@ -870,7 +942,7 @@ export default function Home() {
               rel="noopener noreferrer"
               className="hover:text-indigo-500 transition-colors"
             >
-              💻 GitHub
+              💻 {t("footer.github")}
             </a>
             <a
               href="https://github.com/yklan0930/truelens/issues/new"
@@ -878,7 +950,7 @@ export default function Home() {
               rel="noopener noreferrer"
               className="hover:text-indigo-500 transition-colors"
             >
-              💬 反馈问题
+              💬 {t("footer.feedback")}
             </a>
           </div>
         </div>

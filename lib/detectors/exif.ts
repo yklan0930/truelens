@@ -6,6 +6,7 @@
  */
 
 import exifr from "exifr";
+import { serverT, type ServerLocale } from "@/lib/i18n/server";
 
 export interface ExifResult {
   score: number; // 0-1, higher = more likely AI-generated
@@ -54,8 +55,12 @@ const AI_SOFTWARE_SIGNATURES = [
 ];
 
 export async function analyzeExif(
-  imageBuffer: Buffer
+  imageBuffer: Buffer,
+  locale: ServerLocale = "zh"
 ): Promise<ExifResult> {
+  const t = (key: string, params?: Record<string, string | number>) =>
+    serverT(locale, key, params);
+
   let exifData: Record<string, unknown> | null = null;
 
   try {
@@ -74,8 +79,8 @@ export async function analyzeExif(
       evidence: [
         {
           type: "ai",
-          label: "无 EXIF 数据",
-          detail: "图片完全不含元数据，AI 生成图片通常如此",
+          label: t("evidence.no_exif"),
+          detail: t("evidence.no_exif_detail_ai"),
         },
       ],
     };
@@ -89,8 +94,8 @@ export async function analyzeExif(
       evidence: [
         {
           type: "ai",
-          label: "无 EXIF 数据",
-          detail: "图片完全不含元数据，真实相机拍摄的照片通常会有相机信息",
+          label: t("evidence.no_exif"),
+          detail: t("evidence.no_exif_detail_real"),
         },
       ],
     };
@@ -110,24 +115,28 @@ export async function analyzeExif(
     realScore += 0.4;
     evidence.push({
       type: "real",
-      label: "相机元数据完整",
-      detail: `检测到 ${presentFields.length} 个相机相关字段：${presentFields
-        .slice(0, 5)
-        .join(", ")}${presentFields.length > 5 ? " 等" : ""}`,
+      label: t("evidence.camera_fields_complete"),
+      detail: t("evidence.camera_fields_complete_detail", {
+        count: presentFields.length,
+        fields: presentFields.slice(0, 5).join(", "),
+        suffix: presentFields.length > 5 ? (locale === "zh" ? " 等" : " etc.") : "",
+      }),
     });
   } else if (presentFields.length > 0) {
     realScore += 0.15;
     evidence.push({
       type: "neutral",
-      label: "元数据较少",
-      detail: `仅检测到 ${presentFields.length} 个相机字段，可能是压缩后的真实照片`,
+      label: t("evidence.camera_fields_few"),
+      detail: t("evidence.camera_fields_few_detail", {
+        count: presentFields.length,
+      }),
     });
   } else {
     aiScore += 0.3;
     evidence.push({
       type: "ai",
-      label: "缺少相机信息",
-      detail: "未检测到任何相机品牌、型号、光圈等元数据",
+      label: t("evidence.no_camera_info"),
+      detail: t("evidence.no_camera_info_detail"),
     });
   }
 
@@ -136,18 +145,24 @@ export async function analyzeExif(
     realScore += 0.2;
     evidence.push({
       type: "real",
-      label: "包含 GPS 定位",
-      detail: `经纬度：${(exifData.GPSLatitude as number)?.toFixed(4)}, ${(exifData.GPSLongitude as number)?.toFixed(4)}`,
+      label: t("evidence.gps_found"),
+      detail: t("evidence.gps_found_detail", {
+        lat: (exifData.GPSLatitude as number)?.toFixed(4) ?? "N/A",
+        lng: (exifData.GPSLongitude as number)?.toFixed(4) ?? "N/A",
+      }),
     });
   }
 
   // Check DateTimeOriginal
   if (exifData.DateTimeOriginal) {
     realScore += 0.15;
+    const dateStr = new Date(exifData.DateTimeOriginal as string).toLocaleString(
+      locale === "zh" ? "zh-CN" : "en-US"
+    );
     evidence.push({
       type: "real",
-      label: "包含拍摄时间",
-      detail: `拍摄时间：${new Date(exifData.DateTimeOriginal as string).toLocaleString("zh-CN")}`,
+      label: t("evidence.datetime_found"),
+      detail: t("evidence.datetime_found_detail", { date: dateStr }),
     });
   }
 
@@ -162,14 +177,14 @@ export async function analyzeExif(
       aiScore += 0.5;
       evidence.push({
         type: "ai",
-        label: "检测到 AI 软件签名",
-        detail: `Software 字段包含：${software}`,
+        label: t("evidence.ai_software"),
+        detail: t("evidence.ai_software_detail", { software }),
       });
     } else {
       evidence.push({
         type: "neutral",
-        label: "包含软件信息",
-        detail: `Software：${software}`,
+        label: t("evidence.software_info"),
+        detail: t("evidence.software_info_detail", { software }),
       });
     }
   }

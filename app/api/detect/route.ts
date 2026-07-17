@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { analyzeImage } from "@/lib/analyzer";
+import { serverT, detectLocale, type ServerLocale } from "@/lib/i18n/server";
 
 export const runtime = "nodejs";
 export const maxDuration = 30; // 30 seconds max
@@ -7,7 +8,6 @@ export const maxDuration = 30; // 30 seconds max
 // --- Simple in-memory rate limiter ---
 // Limits: 10 requests/minute per IP (prevents abuse)
 // Note: In production on Vercel, this resets per serverless instance.
-// For more robust limiting, use Upstash Redis or Vercel KV.
 
 const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
 const RATE_LIMIT_MAX = 10; // 10 requests per minute
@@ -62,13 +62,18 @@ const ALLOWED_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/we
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 export async function POST(request: NextRequest) {
+  // Detect locale from request
+  const locale: ServerLocale = detectLocale(request.headers.get("accept-language"));
+  const t = (key: string, params?: Record<string, string | number>) =>
+    serverT(locale, key, params);
+
   try {
     // --- Rate limiting ---
     const clientIP = getClientIP(request);
     const rateLimit = checkRateLimit(clientIP);
     if (!rateLimit.allowed) {
       return NextResponse.json(
-        { error: "请求过于频繁，请稍后再试" },
+        { error: t("api.rateLimit") },
         {
           status: 429,
           headers: {
@@ -87,7 +92,7 @@ export async function POST(request: NextRequest) {
 
     if (!file) {
       return NextResponse.json(
-        { error: "请上传图片文件" },
+        { error: t("api.noFile") },
         { status: 400 }
       );
     }
@@ -95,7 +100,7 @@ export async function POST(request: NextRequest) {
     // --- Validate file type (strict whitelist) ---
     if (!ALLOWED_TYPES.has(file.type)) {
       return NextResponse.json(
-        { error: `不支持的文件类型：${file.type}。仅支持 JPG、PNG、WebP` },
+        { error: t("api.unsupportedType", { type: file.type }) },
         { status: 400 }
       );
     }
@@ -103,14 +108,14 @@ export async function POST(request: NextRequest) {
     // --- Validate file size ---
     if (file.size > MAX_FILE_SIZE) {
       return NextResponse.json(
-        { error: "图片大小不能超过 10MB" },
+        { error: t("api.fileTooLarge") },
         { status: 400 }
       );
     }
 
     if (file.size < 100) {
       return NextResponse.json(
-        { error: "图片文件过小，可能已损坏" },
+        { error: t("api.fileTooSmall") },
         { status: 400 }
       );
     }
@@ -119,7 +124,7 @@ export async function POST(request: NextRequest) {
     const hfToken = process.env.HF_TOKEN;
     if (!hfToken) {
       return NextResponse.json(
-        { error: "服务器未配置检测引擎" },
+        { error: t("api.noEngine") },
         { status: 500 }
       );
     }
@@ -128,8 +133,8 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await file.arrayBuffer();
     const imageBuffer = Buffer.from(arrayBuffer);
 
-    // --- Run analysis ---
-    const result = await analyzeImage(imageBuffer, hfToken);
+    // --- Run analysis with locale ---
+    const result = await analyzeImage(imageBuffer, hfToken, locale);
 
     // Return result with rate limit headers
     const response = NextResponse.json({
@@ -151,7 +156,7 @@ export async function POST(request: NextRequest) {
     return response;
   } catch (error) {
     const message =
-      error instanceof Error ? error.message : "检测过程中发生未知错误";
+      error instanceof Error ? error.message : t("api.unknownError");
     console.error("[TrueLens] Detection error:", message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
