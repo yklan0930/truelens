@@ -866,6 +866,7 @@ export default function Home() {
 
         {/* Features (when no image) */}
         {!image && (
+          <>
           <div className="mt-12 grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="bg-white rounded-xl p-5 border border-slate-200">
               <div className="text-2xl mb-2">🧠</div>
@@ -889,6 +890,64 @@ export default function Home() {
               <p className="text-sm text-slate-500">{t("features.fastResult.desc")}</p>
             </div>
           </div>
+
+          {/* How It Works */}
+          <div className="mt-12">
+            <h2 className="text-xl font-bold text-slate-900 mb-6 text-center">
+              {t("howItWorks.title")}
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="bg-white rounded-xl p-5 border border-slate-200 text-center">
+                <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-600 font-bold text-lg flex items-center justify-center mx-auto mb-3">
+                  1
+                </div>
+                <h3 className="font-bold text-slate-900 mb-1">{t("howItWorks.step1Title")}</h3>
+                <p className="text-sm text-slate-500">{t("howItWorks.step1Desc")}</p>
+              </div>
+              <div className="bg-white rounded-xl p-5 border border-slate-200 text-center">
+                <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-600 font-bold text-lg flex items-center justify-center mx-auto mb-3">
+                  2
+                </div>
+                <h3 className="font-bold text-slate-900 mb-1">{t("howItWorks.step2Title")}</h3>
+                <p className="text-sm text-slate-500">{t("howItWorks.step2Desc")}</p>
+              </div>
+              <div className="bg-white rounded-xl p-5 border border-slate-200 text-center">
+                <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-600 font-bold text-lg flex items-center justify-center mx-auto mb-3">
+                  3
+                </div>
+                <h3 className="font-bold text-slate-900 mb-1">{t("howItWorks.step3Title")}</h3>
+                <p className="text-sm text-slate-500">{t("howItWorks.step3Desc")}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* FAQ */}
+          <div className="mt-12">
+            <h2 className="text-xl font-bold text-slate-900 mb-6 text-center">
+              {t("faq.title")}
+            </h2>
+            <div className="space-y-3 max-w-2xl mx-auto">
+              {[
+                { q: t("faq.q1"), a: t("faq.a1") },
+                { q: t("faq.q2"), a: t("faq.a2") },
+                { q: t("faq.q3"), a: t("faq.a3") },
+                { q: t("faq.q4"), a: t("faq.a4") },
+                { q: t("faq.q5"), a: t("faq.a5") },
+                { q: t("faq.q6"), a: t("faq.a6") },
+              ].map((item, i) => (
+                <details key={i} className="bg-white rounded-xl border border-slate-200 group">
+                  <summary className="cursor-pointer p-4 font-medium text-slate-900 flex items-center justify-between list-none">
+                    {item.q}
+                    <span className="text-slate-400 group-open:rotate-180 transition-transform">▾</span>
+                  </summary>
+                  <div className="px-4 pb-4 text-sm text-slate-600 leading-relaxed">
+                    {item.a}
+                  </div>
+                </details>
+              ))}
+            </div>
+          </div>
+          </>
         )}
       </main>
 
