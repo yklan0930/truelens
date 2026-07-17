@@ -56,7 +56,7 @@ export async function detectWithHuggingFace(
           Authorization: `Bearer ${token}`,
           "Content-Type": "image/jpeg",
         },
-        body: imageBuffer,
+        body: new Uint8Array(imageBuffer),
         signal: controller.signal,
       });
 
