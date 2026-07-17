@@ -1,0 +1,11 @@
+{
+  "extName": {
+    "message": "TrueLens — AI 图片检测器"
+  },
+  "extDescription": {
+    "message": "右键点击任意图片，检测是否为 AI 生成。基于深度学习 + EXIF 元数据分析。"
+  },
+  "menuTitle": {
+    "message": "用 TrueLens 检测"
+  }
+}

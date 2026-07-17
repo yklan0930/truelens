@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TrueLens</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Header -->
+    <header class="header">
+      <div class="logo">T</div>
+      <div class="header-text">
+        <h1>TrueLens</h1>
+        <p id="header-subtitle">AI Image Authenticity Detection</p>
+      </div>
+    </header>
+
+    <!-- No result state -->
+    <div id="no-result" class="state">
+      <div class="state-icon">📸</div>
+      <p id="no-result-title" class="state-title">Right-click any image</p>
+      <p id="no-result-desc" class="state-desc">Select "Check with TrueLens" to detect if it's AI-generated</p>
+      <a href="https://truelens.top" target="_blank" class="btn-primary" id="open-site">Open TrueLens →</a>
+    </div>
+
+    <!-- Result state -->
+    <div id="result" class="state hidden">
+      <div class="result-image-wrap">
+        <img id="result-image" src="" alt="Analyzed image">
+      </div>
+
+      <div class="result-verdict" id="result-verdict">
+        <span class="verdict-icon" id="verdict-icon"></span>
+        <span class="verdict-text" id="verdict-text"></span>
+      </div>
+
+      <div class="result-prob">
+        <div class="prob-label" id="prob-label">AI Probability</div>
+        <div class="prob-value" id="prob-value">0%</div>
+      </div>
+
+      <div class="prob-bar">
+        <div class="prob-fill" id="prob-fill"></div>
+      </div>
+      <div class="prob-labels">
+        <span id="label-real">Real Photo</span>
+        <span id="label-ai">AI-Generated</span>
+      </div>
+
+      <div class="result-meta">
+        <span id="meta-confidence">Confidence: 0%</span>
+        <span id="meta-time">0ms</span>
+      </div>
+
+      <div class="result-evidence" id="evidence-list"></div>
+
+      <a href="https://truelens.top" target="_blank" class="btn-secondary" id="full-report">View Full Report →</a>
+    </div>
+
+    <!-- Loading state -->
+    <div id="loading" class="state hidden">
+      <div class="spinner"></div>
+      <p id="loading-text" class="state-title">Analyzing...</p>
+      <p class="state-desc">TrueLens is checking this image</p>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <span>truelens.top</span>
+      <span id="footer-version">v1.0</span>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

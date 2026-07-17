@@ -1,0 +1,11 @@
+{
+  "extName": {
+    "message": "TrueLens — AI Image Detector"
+  },
+  "extDescription": {
+    "message": "Right-click any image to check if it's AI-generated. Powered by deep learning + EXIF analysis."
+  },
+  "menuTitle": {
+    "message": "Check with TrueLens"
+  }
+}
