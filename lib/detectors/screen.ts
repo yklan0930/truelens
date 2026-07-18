@@ -49,8 +49,8 @@ export interface ScreenResult {
 const MAX_DIM = 2200; // near-native — fine moiré must survive the downscale
 const MIN_LAG = 2;
 const MAX_LAG = 12; // FINE periods only (screen sub-pixel / moiré), not brick/blinds
-const PERIOD_GATE = 0.45; // primary gate — strong fine periodicity required
-const SCREEN_GATE = 0.35; // combined-score gate
+const PERIOD_GATE = 0.40; // primary gate — fine periodicity (slightly relaxed for weak real moiré)
+const SCREEN_GATE = 0.30; // combined-score gate
 
 function clamp01(v: number): number {
   return v < 0 ? 0 : v > 1 ? 1 : v;
@@ -155,7 +155,12 @@ export async function analyzeScreen(
     // period. The residual isolates fine, repeating structure: moiré / sub-pixel
     // grids (screen) and JPEG 8x8 blocks (all JPEGs). We exclude lag 8 to drop
     // the latter.
-    const blur = boxBlur(gray, nW, nH, 2);
+    //
+    // IMPORTANT: use a LARGE blur radius (≈24px) for the high-pass. A small
+    // radius (2px) would itself average away the very 2-5px moiré periods we
+    // are trying to detect. The large radius only removes very-low-frequency
+    // trends (periods > ~24px) while leaving fine moiré intact.
+    const blur = boxBlur(gray, nW, nH, 24);
     const res = new Float32Array(N);
     for (let i = 0; i < N; i++) res[i] = gray[i] - blur[i];
 
