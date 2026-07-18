@@ -20,6 +20,7 @@
 import { detectWithHuggingFace, HFDetectionResult } from "./detectors/huggingface";
 import { analyzeExif, ExifResult, type SignalLean } from "./detectors/exif";
 import { detectWatermark, type WatermarkResult } from "./detectors/watermark";
+import { analyzeFaceSkin, type FaceSkinResult } from "./detectors/skin";
 import { serverT, type ServerLocale } from "@/lib/i18n/server";
 
 export interface DetectionResult {
@@ -30,6 +31,7 @@ export interface DetectionResult {
     huggingface?: HFDetectionResult;
     exif?: ExifResult;
     watermark?: WatermarkResult;
+    face?: FaceSkinResult;
   };
   evidence: EvidenceItem[];
   /** Structured, human-readable signal breakdown (detailed report). */
@@ -214,6 +216,53 @@ export async function analyzeImage(
     });
   }
 
+  // --- Face / skin analysis (best-effort, conditional) ---
+  // A detected human portrait is strong evidence of a REAL photograph; smoothed
+  // skin inside that portrait points to a beauty-filter / retouching pipeline.
+  // We only spend the (cheap) pixel pass when the visual model is suspicious.
+  let face: FaceSkinResult | null = null;
+  if (aiProb > 0.5 && aiProb < 0.98) {
+    try {
+      face = await analyzeFaceSkin(imageBuffer);
+    } catch {
+      face = null;
+    }
+  }
+  if (face?.signal) {
+    engines.face = face;
+    const beautified = face.signal === "real_retouched";
+    // Compression factor (lower = stronger pull toward "uncertain"):
+    //   0.50 — portrait with smoothed skin (beauty filter / retouching)
+    //   0.70 — portrait with natural skin texture (real photo)
+    const compression = beautified ? 0.5 : 0.7;
+    aiProb = 0.5 + (aiProb - 0.5) * compression;
+    evidence.push({
+      source: t("evidence.source_face"),
+      type: "real",
+      label: beautified ? t("evidence.skin_beautified") : t("evidence.face_detected"),
+      detail: beautified
+        ? t("evidence.skin_beautified_detail", {
+            coverage: Math.round(face.skinCoverage * 100),
+          })
+        : t("evidence.face_detected_detail", {
+            coverage: Math.round(face.skinCoverage * 100),
+          }),
+    });
+    signals.push({
+      category: "exif",
+      label: beautified ? t("evidence.skin_beautified") : t("evidence.face_detected"),
+      detail: beautified
+        ? t("evidence.skin_beautified_detail", {
+            coverage: Math.round(face.skinCoverage * 100),
+          })
+        : t("evidence.face_detected_detail", {
+            coverage: Math.round(face.skinCoverage * 100),
+          }),
+      lean: "real",
+      score: face.score,
+    });
+  }
+
   const aiPercentRaw = Math.round(aiProb * 100);
 
   // --- Confidence calibration ---
@@ -251,9 +300,17 @@ export async function analyzeImage(
   // conservative — these cases often fall into "uncertain" and prompt the user
   // to consider the image as a retouched real photo rather than AI-generated.
   const watermarkSignal = !!watermark?.found;
+  const faceDetected = !!face?.signal;
+  const faceBeautified = face?.signal === "real_retouched";
   const retouchingSignal =
-    (hasRetouchingSignal || hasBeautySoftwareSignal || watermarkSignal) && aiPercent < 95;
-  const aiThreshold = retouchingSignal ? 75 : 65;
+    (hasRetouchingSignal ||
+      hasBeautySoftwareSignal ||
+      watermarkSignal ||
+      faceBeautified) &&
+    aiPercent < 95;
+  // A detected portrait makes the "likely AI" verdict less reliable, so we raise
+  // the bar to 75 — these cases more often fall into "uncertain".
+  const aiThreshold = retouchingSignal || faceDetected ? 75 : 65;
   const realThreshold = 35;
   if (aiPercent >= aiThreshold) {
     verdict = "likely_ai";
