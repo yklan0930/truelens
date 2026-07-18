@@ -48,6 +48,7 @@ export default function HeaderAuth() {
             setModalMode("signup");
             setModalOpen(true);
           }}
+          data-auth-action="signup"
           className="px-3 py-1.5 text-sm font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors min-h-[40px]"
         >
           {t("auth.signup")}

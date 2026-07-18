@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import { useSession } from "next-auth/react";
 import { useT, useLocale, type Locale } from "@/lib/i18n/context";
 import HeaderAuth from "@/components/auth/HeaderAuth";
 
@@ -30,7 +31,8 @@ interface HistoryItem {
   timestamp: number;
 }
 
-const FREE_DAILY_LIMIT = 1;
+const ANON_LIMIT = 1;
+const USER_LIMIT = 5;
 
 // --- Quota helpers ---
 function getTodayKey() {
@@ -55,8 +57,8 @@ function incrementDailyCount() {
   });
 }
 
-function getRemainingQuota() {
-  return Math.max(0, FREE_DAILY_LIMIT - getDailyCount());
+function getRemainingAnonQuota() {
+  return Math.max(0, ANON_LIMIT - getDailyCount());
 }
 
 // --- History helpers ---
@@ -165,6 +167,8 @@ async function generateShareCard(
 export default function Home() {
   const t = useT();
   const { locale, setLocale } = useLocale();
+  const { data: session, status: sessionStatus } = useSession();
+  const isAuthenticated = sessionStatus === "authenticated" && !!session?.user;
 
   const [image, setImage] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string>("");
@@ -172,7 +176,7 @@ export default function Home() {
   const [result, setResult] = useState<DetectionResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
-  const [quota, setQuota] = useState(FREE_DAILY_LIMIT);
+  const [quota, setQuota] = useState(ANON_LIMIT); // reflects actual remaining detections
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [feedbackState, setFeedbackState] = useState<"none" | "good" | "bad" | "submitted">("none");
@@ -183,9 +187,14 @@ export default function Home() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    setQuota(getRemainingQuota());
+    // Set initial quota: logged-in users get USER_LIMIT, anonymous get localStorage-based
+    if (isAuthenticated) {
+      setQuota(USER_LIMIT);
+    } else {
+      setQuota(getRemainingAnonQuota());
+    }
     setHistory(getHistory());
-  }, []);
+  }, [isAuthenticated]);
 
   const handleFile = useCallback(
     (file: File) => {
@@ -225,10 +234,13 @@ export default function Home() {
   const handleDetect = async () => {
     if (!image) return;
 
-    const remaining = getRemainingQuota();
-    if (remaining <= 0) {
-      setError(t("errors.quotaExhausted"));
-      return;
+    // For anonymous users, check localStorage quota before sending request
+    if (!isAuthenticated) {
+      const remaining = getRemainingAnonQuota();
+      if (remaining <= 0) {
+        setError(t("errors.quotaExhausted"));
+        return;
+      }
     }
 
     setLoading(true);
@@ -253,8 +265,14 @@ export default function Home() {
       }
 
       setResult(data.result);
-      incrementDailyCount();
-      setQuota(getRemainingQuota());
+
+      // Update quota from server response (authoritative source)
+      if (data.auth?.authenticated) {
+        setQuota(data.auth.dailyRemaining);
+      } else {
+        incrementDailyCount();
+        setQuota(getRemainingAnonQuota());
+      }
 
       addToHistory({
         id: `${Date.now()}`,
@@ -473,12 +491,26 @@ export default function Home() {
                 {showHistory ? t("header.hideHistory") : t("header.showHistory")}
               </button>
             )}
-            <div className="text-sm bg-slate-100 rounded-lg px-3 py-1.5">
+            <div className="text-sm bg-slate-100 rounded-lg px-3 py-1.5 flex items-center gap-2">
               <span
                 className={quota > 0 ? "text-indigo-600 font-semibold" : "text-slate-400"}
               >
-                {t("header.quotaRemaining", { quota })}
+                {isAuthenticated
+                  ? t("header.quotaLoggedIn", { quota })
+                  : t("header.quotaRemaining", { quota })}
               </span>
+              {!isAuthenticated && (
+                <button
+                  onClick={() => {
+                    // Trigger the HeaderAuth modal
+                    const signupBtn = document.querySelector<HTMLButtonElement>('[data-auth-action="signup"]');
+                    signupBtn?.click();
+                  }}
+                  className="text-xs text-indigo-500 hover:text-indigo-700 font-medium whitespace-nowrap"
+                >
+                  {t("header.loginForMore")}
+                </button>
+              )}
             </div>
             <HeaderAuth />
           </div>
@@ -599,8 +631,23 @@ export default function Home() {
               </button>
             </div>
             <p className="text-sm text-slate-400 mt-4">{t("upload.supportedFormats")}</p>
+            {!isAuthenticated && !showHistory && (
+              <p className="mt-3 text-sm text-indigo-600 font-medium">
+                <button
+                  onClick={() => {
+                    const signupBtn = document.querySelector<HTMLButtonElement>('[data-auth-action="signup"]');
+                    signupBtn?.click();
+                  }}
+                  className="hover:underline"
+                >
+                  {quota > 0
+                    ? t("upload.loginEncouragement")
+                    : t("upload.loginEncouragementExhausted")}
+                </button>
+              </p>
+            )}
             {quota === 0 && (
-              <p className="mt-3 text-sm text-orange-500">{t("upload.quotaExhaustedHint")}</p>
+              <p className="mt-1 text-sm text-orange-500">{t("upload.quotaExhaustedHint")}</p>
             )}
             <input
               ref={fileInputRef}
