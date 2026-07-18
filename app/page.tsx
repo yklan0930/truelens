@@ -12,11 +12,20 @@ interface Evidence {
   detail: string;
 }
 
+interface SignalItem {
+  category: "vit" | "exif" | "format" | "calibration";
+  label: string;
+  detail: string;
+  lean: "real" | "ai" | "neutral";
+  score?: number;
+}
+
 interface DetectionResult {
   aiProbability: number;
   verdict: "likely_ai" | "likely_real" | "uncertain";
   confidence: number;
   evidence: Evidence[];
+  signals?: SignalItem[];
   processingTimeMs: number;
   fileName: string;
   fileSize: number;
@@ -264,6 +273,10 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [quota, setQuota] = useState(ANON_LIMIT); // reflects actual remaining detections
+  const [showDetailed, setShowDetailed] = useState(true); // professional report entitlement
+  const [authUnlimited, setAuthUnlimited] = useState(false); // admin: unlimited detections
+  const [userPlan, setUserPlan] = useState<string>("free");
+  const [isAdminUser, setIsAdminUser] = useState(false);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [feedbackState, setFeedbackState] = useState<"none" | "good" | "bad" | "submitted">("none");
@@ -360,9 +373,18 @@ export default function Home() {
 
       setResult(data.result);
 
-      // Update quota from server response (authoritative source)
+      // Update entitlement + quota from server response (authoritative source)
+      setShowDetailed(data.showDetailed !== false);
+      setAuthUnlimited(!!data.auth?.unlimited);
+      setUserPlan(data.auth?.plan || "free");
+      setIsAdminUser(!!data.auth?.isAdmin);
+
       if (data.auth?.authenticated) {
-        setQuota(data.auth.dailyRemaining);
+        if (data.auth.unlimited) {
+          setQuota(9999); // sentinel; display uses authUnlimited
+        } else {
+          setQuota(data.auth.dailyRemaining);
+        }
       } else {
         incrementDailyCount();
         setQuota(getRemainingAnonQuota());
@@ -593,13 +615,19 @@ export default function Home() {
               </button>
             )}
             <div className="text-sm bg-slate-100 rounded-lg px-3 py-1.5 flex items-center gap-2">
-              <span
-                className={quota > 0 ? "text-indigo-600 font-semibold" : "text-slate-400"}
-              >
-                {isAuthenticated
-                  ? t("header.quotaLoggedIn", { quota })
-                  : t("header.quotaRemaining", { quota })}
-              </span>
+              {authUnlimited ? (
+                <span className="text-indigo-600 font-semibold">
+                  ∞ {t("header.unlimited")}
+                </span>
+              ) : (
+                <span
+                  className={quota > 0 ? "text-indigo-600 font-semibold" : "text-slate-400"}
+                >
+                  {isAuthenticated
+                    ? t("header.quotaLoggedIn", { quota })
+                    : t("header.quotaRemaining", { quota })}
+                </span>
+              )}
               {!isAuthenticated && (
                 <button
                   onClick={() => {
@@ -895,7 +923,7 @@ export default function Home() {
                 </button>
               </p>
             )}
-            {quota === 0 && (
+            {!authUnlimited && quota === 0 && (
               <p className="mt-1 text-sm text-orange-500">{t("upload.quotaExhaustedHint")}</p>
             )}
             <input
@@ -929,9 +957,11 @@ export default function Home() {
                     <p className="text-sm text-slate-500 mb-1">{t("upload.fileName")}</p>
                     <p className="font-medium text-slate-900 truncate">{fileName}</p>
                     <p className="text-xs text-slate-400 mt-2">
-                      {quota > 0
-                        ? t("upload.quotaInfo", { quota })
-                        : t("upload.quotaExhaustedBtn")}
+                      {authUnlimited
+                        ? t("upload.quotaInfo", { quota: "∞" })
+                        : quota > 0
+                          ? t("upload.quotaInfo", { quota })
+                          : t("upload.quotaExhaustedBtn")}
                     </p>
                   </div>
                   <div className="mt-4 flex gap-3">
@@ -1123,35 +1153,70 @@ export default function Home() {
                   )}
                 </div>
 
-                {/* Evidence */}
-                <div className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6">
-                  <h3 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
-                    <span>🔍</span> {t("result.evidenceTitle")}
-                  </h3>
-                  <div className="space-y-3">
-                    {result.evidence.map((ev, i) => (
-                      <div
-                        key={i}
-                        className={`p-3 rounded-lg border ${evidenceColor[ev.type]}`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium text-sm">{ev.label}</span>
-                          <span className="text-xs opacity-70">{ev.source}</span>
+                {/* Evidence / Professional Report (gated by membership) */}
+                {showDetailed ? (
+                  <div className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6">
+                    <h3 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
+                      <span>🔍</span> {t("result.evidenceTitle")}
+                    </h3>
+                    <div className="space-y-3">
+                      {(result.signals && result.signals.length > 0
+                        ? result.signals.map((s) => ({
+                            type: s.lean,
+                            label: s.label,
+                            detail: s.detail,
+                            extra: s.score != null ? `${s.score}%` : "",
+                          }))
+                        : result.evidence.map((ev) => ({
+                            type: ev.type,
+                            label: ev.label,
+                            detail: ev.detail,
+                            extra: ev.source,
+                          }))
+                      ).map((item, i) => (
+                        <div
+                          key={i}
+                          className={`p-3 rounded-lg border ${evidenceColor[item.type]}`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-medium text-sm">{item.label}</span>
+                            {item.extra && (
+                              <span className="text-xs opacity-70">{item.extra}</span>
+                            )}
+                          </div>
+                          <p className="text-xs mt-1 opacity-80">{item.detail}</p>
                         </div>
-                        <p className="text-xs mt-1 opacity-80">{ev.detail}</p>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
 
-                  <div className="mt-4 pt-4 border-t border-slate-100 flex justify-between text-xs text-slate-400">
-                    <span>
-                      {t("result.fileSize", { size: (result.fileSize / 1024).toFixed(0) })}
-                    </span>
-                    <span>
-                      {t("result.processingTime", { ms: result.processingTimeMs })}
-                    </span>
+                    <div className="mt-4 pt-4 border-t border-slate-100 flex justify-between text-xs text-slate-400">
+                      <span>
+                        {t("result.fileSize", { size: (result.fileSize / 1024).toFixed(0) })}
+                      </span>
+                      <span>
+                        {t("result.processingTime", { ms: result.processingTimeMs })}
+                      </span>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="bg-gradient-to-br from-slate-900 to-indigo-900 rounded-2xl p-6 text-center text-white shadow-sm">
+                    <div className="text-3xl mb-2">🔒</div>
+                    <h3 className="font-bold text-lg mb-1">{t("paywall.title")}</h3>
+                    <p className="text-sm text-white/70 mb-4">{t("paywall.desc")}</p>
+                    <button
+                      onClick={() => {
+                        const signupBtn = document.querySelector<HTMLButtonElement>(
+                          '[data-auth-action="signup"]'
+                        );
+                        signupBtn?.click();
+                      }}
+                      className="bg-white text-indigo-700 font-semibold py-2.5 px-6 rounded-xl hover:bg-indigo-50 transition-colors min-h-[44px]"
+                    >
+                      {t("paywall.cta")}
+                    </button>
+                    <p className="text-xs text-white/50 mt-3">{t("paywall.note")}</p>
+                  </div>
+                )}
 
                 {/* Disclaimer */}
                 <p className="text-xs text-slate-400 text-center px-4">

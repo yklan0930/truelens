@@ -1,17 +1,24 @@
 /**
- * TrueLens Multi-Engine Analyzer
- * Combines HF ViT model + EXIF analysis with weighted voting.
+ * TrueLens Multi-Engine Analyzer (v2)
  *
  * Architecture:
- *   HF ViT (Inference API)  → 80% weight
- *   EXIF Metadata Analysis  → 20% weight
+ *   HF ViT (Inference API)  → primary "does it look AI-generated" classifier
+ *   EXIF Metadata Analysis  → MODERATOR (real / AI signal), NOT a driver
+ *   Format Heuristics       → weak REAL-leaning moderator (screenshot/app export)
  *
- * When HF API is available: final = HF*0.8 + EXIF*0.2
- * When HF API is down:      final = EXIF score only (lower confidence)
+ * Key fix vs v1:
+ *   v1 did  final = HF*0.8 + EXIF*0.2, where EXIF returned 0.7 whenever metadata
+ *   was absent. That pushed real-but-stripped images (screenshots, app-retouched
+ *   exports, scans) over the AI threshold. v2 uses EXIF only to *moderate* the HF
+ *   score, and treats "no metadata" as NEUTRAL (no push in either direction).
+ *
+ * Confidence calibration:
+ *   When the only signal is the HF classifier and it is borderline, we honestly
+ *   lower confidence and widen the "uncertain" band instead of forcing a verdict.
  */
 
 import { detectWithHuggingFace, HFDetectionResult } from "./detectors/huggingface";
-import { analyzeExif, ExifResult } from "./detectors/exif";
+import { analyzeExif, ExifResult, type SignalLean } from "./detectors/exif";
 import { serverT, type ServerLocale } from "@/lib/i18n/server";
 
 export interface DetectionResult {
@@ -23,18 +30,30 @@ export interface DetectionResult {
     exif?: ExifResult;
   };
   evidence: EvidenceItem[];
+  /** Structured, human-readable signal breakdown (detailed report). */
+  signals?: SignalItem[];
+  /** Short explanation of how confidence was calibrated (detailed report). */
+  calibration?: string;
   processingTimeMs: number;
 }
 
-interface EvidenceItem {
+export interface EvidenceItem {
   source: string;
   type: "real" | "ai" | "neutral";
   label: string;
   detail: string;
 }
 
-const HF_WEIGHT = 0.8;
-const EXIF_WEIGHT = 0.2;
+export interface SignalItem {
+  category: "vit" | "exif" | "format" | "calibration";
+  label: string;
+  detail: string;
+  lean: SignalLean;
+  /** AI-lean score 0-100 (higher = more likely AI). */
+  score?: number;
+}
+
+const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 
 export async function analyzeImage(
   imageBuffer: Buffer,
@@ -54,16 +73,16 @@ export async function analyzeImage(
 
   const engines: DetectionResult["engines"] = {};
   const evidence: EvidenceItem[] = [];
-  let aiProbability = 0;
-  let totalWeight = 0;
+  const signals: SignalItem[] = [];
 
-  // Process HF result
+  // --- HF ViT (primary) ---
+  let aiProb = 0.5; // fallback if HF fails
   if (hfResult.status === "fulfilled" && hfResult.value) {
     const hf = hfResult.value;
     engines.huggingface = hf;
-    aiProbability += hf.aiScore * HF_WEIGHT;
-    totalWeight += HF_WEIGHT;
+    aiProb = hf.aiScore;
 
+    const hfScorePct = Math.round(hf.aiScore * 100);
     evidence.push({
       source: t("evidence.source_vit"),
       type: hf.aiScore > 0.5 ? "ai" : "real",
@@ -73,18 +92,32 @@ export async function analyzeImage(
           : t("evidence.real_prob_label", { value: (hf.humanScore * 100).toFixed(1) }),
       detail: t("evidence.hf_model_detail", { value: (hf.confidence * 100).toFixed(1) }),
     });
+    signals.push({
+      category: "vit",
+      label: t("evidence.source_vit"),
+      detail: t("evidence.hf_model_detail", { value: (hf.confidence * 100).toFixed(1) }),
+      lean: hf.aiScore > 0.5 ? "ai" : "real",
+      score: hfScorePct,
+    });
+  } else {
+    evidence.push({
+      source: t("evidence.source_vit"),
+      type: "neutral",
+      label: t("evidence.engine_unavailable"),
+      detail: t("evidence.engine_unavailable_detail"),
+    });
   }
 
-  // Process EXIF result
+  // --- EXIF (moderator) ---
+  let exif: ExifResult | undefined;
   if (exifResult.status === "fulfilled" && exifResult.value) {
-    const exif = exifResult.value;
+    exif = exifResult.value;
     engines.exif = exif;
 
-    // If HF succeeded, EXIF is supplementary (20%)
-    // If HF failed, EXIF is the sole engine
-    const exifWeight = totalWeight > 0 ? EXIF_WEIGHT : 1;
-    aiProbability += exif.score * exifWeight;
-    totalWeight += exifWeight;
+    // Moderation: nudge the HF-based probability by the net EXIF signal.
+    // net = aiStrength - realStrength  (roughly -0.75 .. +0.5)
+    const net = exif.aiStrength - exif.realStrength;
+    aiProb = clamp(aiProb + net * 0.15, 0.01, 0.99);
 
     for (const ev of exif.evidence) {
       evidence.push({
@@ -94,29 +127,49 @@ export async function analyzeImage(
         detail: ev.detail,
       });
     }
+    for (const s of exif.signals) {
+      signals.push({
+        category: "exif",
+        label: s.label,
+        detail: s.detail,
+        lean: s.lean,
+        score: s.lean === "ai" ? 75 : s.lean === "real" ? 20 : 50,
+      });
+    }
   }
 
-  // Normalize
-  if (totalWeight > 0) {
-    aiProbability = aiProbability / totalWeight;
-  } else {
-    // Both engines failed
-    aiProbability = 0.5;
-    evidence.push({
-      source: t("evidence.source_vit"),
-      type: "neutral",
-      label: t("evidence.engine_unavailable"),
-      detail: t("evidence.engine_unavailable_detail"),
-    });
-  }
+  const aiPercentRaw = Math.round(aiProb * 100);
 
-  const aiPercent = Math.round(aiProbability * 100);
-  const confidence =
+  // --- Confidence calibration ---
+  let confidence =
     engines.huggingface?.confidence != null
       ? Math.round(engines.huggingface.confidence * 100)
-      : Math.round((1 - Math.abs(aiProbability - 0.5) * 2) * 100);
+      : Math.round((1 - Math.abs(aiProb - 0.5) * 2) * 100);
 
+  let calibrationNote = "";
+  const borderline = aiPercentRaw > 35 && aiPercentRaw < 65;
+  const noCorroboration = !exif || (exif.aiStrength < 0.3 && exif.realStrength < 0.3);
+
+  // Honest abstention: single classifier, borderline, no supporting signal.
+  if (borderline && noCorroboration) {
+    confidence = Math.min(confidence, 55);
+    calibrationNote = t("evidence.calib_borderline");
+  } else if (exif) {
+    // Corroboration raises confidence when signals agree with the verdict.
+    const agrees =
+      (exif.aiStrength > 0.3 && aiPercentRaw >= 60) ||
+      (exif.realStrength > 0.3 && aiPercentRaw <= 40);
+    if (agrees) {
+      confidence = Math.min(95, confidence + 10);
+      calibrationNote = t("evidence.calib_corroborated");
+    } else if (!borderline) {
+      calibrationNote = t("evidence.calib_hf_only");
+    }
+  }
+
+  // --- Verdict ---
   let verdict: DetectionResult["verdict"];
+  const aiPercent = aiPercentRaw;
   if (aiPercent >= 65) {
     verdict = "likely_ai";
   } else if (aiPercent <= 35) {
@@ -125,12 +178,23 @@ export async function analyzeImage(
     verdict = "uncertain";
   }
 
+  if (calibrationNote) {
+    signals.push({
+      category: "calibration",
+      label: t("evidence.calibration_title"),
+      detail: calibrationNote,
+      lean: "neutral",
+    });
+  }
+
   return {
     aiProbability: aiPercent,
     verdict,
     confidence,
     engines,
     evidence,
+    signals,
+    calibration: calibrationNote || undefined,
     processingTimeMs: Date.now() - startTime,
   };
 }

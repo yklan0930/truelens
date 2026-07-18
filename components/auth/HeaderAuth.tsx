@@ -98,6 +98,16 @@ export default function HeaderAuth() {
                 <p className="text-xs text-slate-500 truncate">{user.email}</p>
               )}
               <p className="text-xs text-slate-400 mt-1">{t("auth.signedInAs")}</p>
+              {user.isAdmin && (
+                <span className="inline-block mt-1.5 px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-xs font-semibold">
+                  {t("auth.adminBadge")}
+                </span>
+              )}
+              {!user.isAdmin && user.plan && user.plan !== "free" && (
+                <span className="inline-block mt-1.5 px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-semibold">
+                  {t("auth.proBadge")}
+                </span>
+              )}
             </div>
 
             {/* Menu items */}

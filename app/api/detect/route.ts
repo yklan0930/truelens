@@ -9,6 +9,15 @@ export const maxDuration = 30; // 30 seconds max
 // --- Limits ---
 const ANON_DAILY_LIMIT = 1; // anonymous users
 const USER_DAILY_LIMIT = 5; // logged-in free users
+const PAID_DAILY_LIMIT = 50; // pro members
+
+// Parse a comma-separated env var of emails (case-insensitive).
+function parseEmails(env?: string): string[] {
+  return (env || "")
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+}
 
 // --- Simple in-memory rate limiter ---
 // Limits: 10 requests/minute per IP (prevents abuse)
@@ -143,33 +152,65 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // --- Check auth + usage (if database is configured) ---
+    // --- Check auth + usage + entitlement (if database is configured) ---
     let userId: string | null = null;
     let userDailyCount = 0;
     let dailyLimit = ANON_DAILY_LIMIT;
+    let isAdmin = false;
+    let plan = "free";
+    let unlimited = false;
+    let showDetailed = false;
 
     if (isDatabaseConfigured()) {
       try {
+        const { prisma } = await import("@/lib/prisma");
         const session = await auth();
         if (session?.user?.id) {
           userId = session.user.id;
           dailyLimit = USER_DAILY_LIMIT;
+          isAdmin = !!session.user.isAdmin;
+          plan = session.user.plan || "free";
 
-          // Check daily usage from database
-          const { prisma } = await import("@/lib/prisma");
-          const today = getTodayDate();
-          const usage = await prisma.usageRecord.findUnique({
-            where: {
-              userId_date: { userId, date: today },
-            },
-          });
-          userDailyCount = usage?.count || 0;
+          // Env overrides (set in Vercel) — handy before DB role migration.
+          const adminEmails = parseEmails(process.env.ADMIN_EMAILS);
+          const paidEmails = parseEmails(process.env.PAID_EMAILS);
+          const email = (session.user.email || "").toLowerCase();
+          if (email && adminEmails.includes(email)) isAdmin = true;
+          if (email && paidEmails.includes(email) && plan === "free") plan = "pro";
 
-          if (userDailyCount >= dailyLimit) {
-            return NextResponse.json(
-              { error: t("errors.quotaExhausted") },
-              { status: 429 }
-            );
+          // Refresh role/plan from DB (authoritative).
+          try {
+            const dbUser = await prisma.user.findUnique({
+              where: { id: userId },
+              select: { isAdmin: true, plan: true },
+            });
+            if (dbUser) {
+              if (dbUser.isAdmin) isAdmin = true;
+              if (dbUser.plan && dbUser.plan !== "free") plan = dbUser.plan;
+            }
+          } catch {
+            // keep env/token values
+          }
+
+          unlimited = isAdmin || plan === "business";
+          showDetailed = isAdmin || plan !== "free";
+          if (plan === "pro") dailyLimit = PAID_DAILY_LIMIT;
+          if (unlimited) dailyLimit = Infinity;
+
+          // Enforce quota unless unlimited.
+          if (dailyLimit !== Infinity) {
+            const today = getTodayDate();
+            const usage = await prisma.usageRecord.findUnique({
+              where: { userId_date: { userId, date: today } },
+            });
+            userDailyCount = usage?.count || 0;
+
+            if (userDailyCount >= dailyLimit) {
+              return NextResponse.json(
+                { error: t("errors.quotaExhausted") },
+                { status: 429 }
+              );
+            }
           }
         }
       } catch (dbError) {
@@ -184,6 +225,17 @@ export async function POST(request: NextRequest) {
 
     // --- Run analysis with locale ---
     const result = await analyzeImage(imageBuffer, hfToken, locale);
+
+    // --- Entitlement: hide the professional report from trial users ---
+    // Free/anonymous users only receive the verdict + probability. The detailed
+    // evidence breakdown (our "judgment logic") is reserved for paid members
+    // and admins. Stripping server-side means trial users cannot retrieve it
+    // even via devtools.
+    if (!showDetailed) {
+      result.evidence = [];
+      result.signals = undefined;
+      result.calibration = undefined;
+    }
 
     // --- Track usage for authenticated users ---
     if (userId && isDatabaseConfigured()) {
@@ -228,11 +280,13 @@ export async function POST(request: NextRequest) {
     // Return result with rate limit headers
     const response = NextResponse.json({
       success: true,
+      showDetailed,
       result: {
         aiProbability: result.aiProbability,
         verdict: result.verdict,
         confidence: result.confidence,
         evidence: result.evidence,
+        signals: result.signals,
         processingTimeMs: result.processingTimeMs,
         fileName: file.name,
         fileSize: file.size,
@@ -241,12 +295,23 @@ export async function POST(request: NextRequest) {
       auth: userId
         ? {
             authenticated: true,
-            dailyLimit,
+            unlimited,
+            isAdmin,
+            plan,
+            showDetailed,
+            dailyLimit: dailyLimit === Infinity ? -1 : dailyLimit,
             dailyUsed: userDailyCount + 1,
-            dailyRemaining: Math.max(0, dailyLimit - userDailyCount - 1),
+            dailyRemaining:
+              dailyLimit === Infinity
+                ? -1
+                : Math.max(0, dailyLimit - userDailyCount - 1),
           }
         : {
             authenticated: false,
+            unlimited: false,
+            isAdmin: false,
+            plan: "free",
+            showDetailed: false,
             dailyLimit: ANON_DAILY_LIMIT,
           },
     });

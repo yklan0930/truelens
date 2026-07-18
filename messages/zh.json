@@ -10,7 +10,8 @@
     "quotaRemaining": "今日剩余 {quota} 次",
     "quotaLoggedIn": "今日剩余 {quota} 次（登录用户）",
     "quotaExhausted": "今日次数已用完",
-    "loginForMore": "登录享更多"
+    "loginForMore": "登录享更多",
+    "unlimited": "无限次"
   },
   "hero": {
     "title": "这张图片是真人拍的，还是 AI 生成的？",
@@ -173,7 +174,9 @@
     "usageToday": "今日已检测 {count} 次",
     "memberSince": "注册于 {date}",
     "myHistory": "我的检测记录",
-    "upgradePro": "升级 Pro"
+    "upgradePro": "升级 Pro",
+    "adminBadge": "管理员",
+    "proBadge": "Pro 会员"
   },
   "evidence": {
     "no_exif": "无 EXIF 数据",
@@ -199,7 +202,17 @@
     "real_prob_label": "真实照片概率 {value}%",
     "hf_model_detail": "SigLIP2 模型分析，置信度 {value}%",
     "source_vit": "ViT 深度学习模型",
-    "source_exif": "EXIF 元数据"
+    "source_exif": "EXIF 元数据",
+    "parse_failed": "元数据解析失败",
+    "parse_failed_detail": "文件可能已损坏或格式特殊，无法读取元数据",
+    "no_exif_digital": "无 EXIF 元数据",
+    "no_exif_digital_detail": "PNG/WebP 格式且不含相机信息，常见于截图、App 导出或数字绘图（通常为真实内容）",
+    "format_digital": "格式特征",
+    "format_digital_detail": "{format} 格式无相机元数据，倾向为屏幕截图 / 应用导出（多为真实内容）",
+    "calibration_title": "置信度校准",
+    "calib_borderline": "信号单一且处于临界区间，已主动降低置信度，建议结合其他手段判断",
+    "calib_corroborated": "多路信号相互印证，置信度已上调",
+    "calib_hf_only": "仅依赖视觉模型判断，缺少元数据佐证"
   },
   "errors": {
     "invalidImage": "请上传图片文件（JPG、PNG、WebP）",
@@ -233,5 +246,11 @@
     "ogTitle": "TrueLens — AI 图片真伪检测",
     "ogDescription": "秒级判断图片是真人拍摄还是 AI 生成，给出概率评分和证据。",
     "keywords": "AI检测, 图片真伪, deepfake, AI生成检测, TrueLens, AI图片识别"
+  },
+  "paywall": {
+    "title": "专业检测报告",
+    "desc": "完整证据链、各引擎信号明细与置信度校准说明，为 Pro 会员专属。免费用户仅显示判定结论与 AI 概率。",
+    "cta": "注册 / 升级查看",
+    "note": "Pro 会员即将上线，注册即可抢先体验"
   }
 }
