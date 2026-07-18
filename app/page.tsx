@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useT, useLocale, type Locale } from "@/lib/i18n/context";
+import HeaderAuth from "@/components/auth/HeaderAuth";
 
 interface Evidence {
   source: string;
@@ -479,6 +480,7 @@ export default function Home() {
                 {t("header.quotaRemaining", { quota })}
               </span>
             </div>
+            <HeaderAuth />
           </div>
         </div>
       </header>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { SessionProvider } from "next-auth/react";
 import { LocaleProvider, useLocale, type Locale } from "@/lib/i18n/context";
 
 function LocaleSync() {
@@ -19,10 +20,12 @@ export default function I18nProvider({
   children: React.ReactNode;
 }) {
   return (
-    <LocaleProvider>
-      <LocaleSync />
-      {children}
-    </LocaleProvider>
+    <SessionProvider>
+      <LocaleProvider>
+        <LocaleSync />
+        {children}
+      </LocaleProvider>
+    </SessionProvider>
   );
 }
 

@@ -43,3 +43,6 @@ next-env.d.ts
 # temp files
 gh.zip
 gh_install/
+
+/lib/generated/prisma
+extension.crx
