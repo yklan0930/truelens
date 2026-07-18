@@ -14,6 +14,7 @@
 #
 # 用法（在 Git Bash / 终端，项目根目录执行）：
 #   bash scripts/db-push.sh
+#   bash scripts/db-push.sh --set-admin admin@truelens.top   # 建表后顺便提权
 #
 # 说明：
 #   - Prisma CLI 默认只读取 .env，不读 .env.local；本脚本会手动 source .env.local
@@ -25,6 +26,20 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 ROOT="$(pwd)"
 echo "📁 工作目录: $ROOT"
+
+# 可选参数：--set-admin <email>  → 建表后顺便把指定邮箱提权为管理员
+ADMIN_EMAIL=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --set-admin)
+      ADMIN_EMAIL="${2:-}"
+      shift 2
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
 
 # 1. 确保依赖已安装（prisma 二进制在 node_modules/.bin 下）
 if [ ! -x ./node_modules/.bin/prisma ]; then
@@ -62,3 +77,10 @@ echo "✅ 检测到 DATABASE_URL，开始同步数据库结构 ..."
 echo ""
 echo "🎉 数据库迁移完成！"
 echo "   接下来可以在 Vercel 配 ADMIN_EMAILS，用管理员邮箱登录测试了。"
+
+# 可选：建表后顺便把指定邮箱提权为管理员
+if [ -n "$ADMIN_EMAIL" ]; then
+  echo ""
+  echo "🔑 建表完成，开始把 $ADMIN_EMAIL 设为管理员 ..."
+  bash scripts/set-admin.sh "$ADMIN_EMAIL" || echo "⚠️  提权步骤未成功（若该邮箱尚未登录过会提示 NO_SUCH_USER，请登录后重跑 scripts/set-admin.sh）"
+fi

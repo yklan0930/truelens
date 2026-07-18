@@ -5,12 +5,24 @@ REM 作用：把 Prisma schema 同步到数据库（建表 + 加 isAdmin/plan）
 REM 用法：在 cmd 里进入项目根目录，执行  scripts\db-push.cmd
 REM 前置：.env.local 中已配置 DATABASE_URL（来自 Prisma Postgres / Vercel Postgres）
 REM ─────────────────────────────────────────────────────────────
-setlocal
+setlocal EnableDelayedExpansion
 
 REM 切到脚本所在目录的上级（项目根）
 cd /d "%~dp0.."
 
 echo 📁 工作目录: %CD%
+
+REM 可选参数：--set-admin <email>  → 建表后顺便把指定邮箱提权为管理员
+set "ADMIN_EMAIL="
+set "SKIPNEXT=0"
+for %%A in (%*) do (
+  if !SKIPNEXT!==1 (
+    set "ADMIN_EMAIL=%%A"
+    set "SKIPNEXT=0"
+  ) else if "%%A"=="--set-admin" (
+    set "SKIPNEXT=1"
+  )
+)
 
 REM 1. 确保依赖已安装
 if not exist "node_modules\.bin\prisma.cmd" (
@@ -44,4 +56,13 @@ call node_modules\.bin\prisma.cmd generate
 
 echo.
 echo 🎉 数据库迁移完成！现在可以去 Vercel 配 ADMIN_EMAILS，用管理员邮箱登录测试了。
+
+REM 可选：建表后顺便把指定邮箱提权为管理员
+if defined ADMIN_EMAIL (
+  echo.
+  echo 🔑 建表完成，开始把 !ADMIN_EMAIL! 设为管理员 ...
+  call scripts\set-admin.cmd !ADMIN_EMAIL!
+  if errorlevel 1 echo ⚠️  提权步骤未成功（若提示 NO_SUCH_USER，请先用该邮箱登录一次，再跑 scripts\set-admin.cmd）
+)
+
 endlocal
