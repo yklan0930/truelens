@@ -1234,6 +1234,19 @@ export default function Home() {
             {/* Result */}
             {result && (
               <div id="result-section" className="space-y-4 animate-in fade-in duration-500">
+                {/* Screen re-photo advisory: shown to ALL users (regardless of
+                    membership) because the unreliable verdict needs explaining
+                    even for anonymous / free-tier users. Placed ABOVE the verdict
+                    box so the caveat is seen before the AI% conclusion. */}
+                {result.screenRephoto && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5">
+                    <p className="text-sm text-amber-800 flex items-start gap-2">
+                      <span className="text-base leading-none">⚠️</span>
+                      <span>{t("result.screenTip")}</span>
+                    </p>
+                  </div>
+                )}
+
                 {/* Verdict Card */}
                 <div
                   className={`${verdictConfig[result.verdict].bgColor} ${
@@ -1366,18 +1379,6 @@ export default function Home() {
                     </div>
                   )}
                 </div>
-
-                {/* Screen re-photo advisory: detected by screen.ts, shown to ALL
-                    users (regardless of membership) because the unreliable verdict
-                    needs explaining even for anonymous / free-tier users. */}
-                {result.screenRephoto && (
-                  <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 mb-4">
-                    <p className="text-sm text-amber-800 flex items-start gap-2">
-                      <span className="text-base leading-none">⚠️</span>
-                      <span>{t("result.screenTip")}</span>
-                    </p>
-                  </div>
-                )}
 
                 {/* Evidence / Professional Report (gated by membership) */}
                 {showDetailed ? (
