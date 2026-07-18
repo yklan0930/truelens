@@ -43,6 +43,10 @@ export interface ExifResult {
   format: ImageFormat;
   evidence: ExifEvidence[];
   signals: ExifSignal[];
+  /** Signals derived from filename (WeChat export, beauty app names, etc.). */
+  filenameSignals?: ExifSignal[];
+  /** Net lean from filename signals (-1 .. +1). */
+  filenameLean?: SignalLean;
 }
 
 interface ExifEvidence {
@@ -84,6 +88,80 @@ const AI_SOFTWARE_SIGNATURES = [
   "gimp", // Sometimes used with AI plugins
 ];
 
+// Software signatures that indicate a beauty / retouching app (real photos).
+// These are NOT AI generators; they are apps that modify real photos.
+const BEAUTY_APP_SIGNATURES = [
+  "meitu",
+  "美图",
+  "美颜相机",
+  "beautycam",
+  "b612",
+  "b612咔叽",
+  "faceu",
+  "激萌",
+  "无他",
+  "轻颜",
+  "qingyan",
+  "潮自拍",
+  "相机360",
+  "camera360",
+  "可颂",
+  "capcut",
+  "剪映",
+  "醒图",
+  "xingtu",
+  "一甜",
+  "tianyan",
+  "甜盐",
+  "美妆相机",
+  "玩图",
+  "wuta",
+  "无他相机",
+  "yitian",
+  "snow",
+  "ulike",
+  "sweet",
+  "selfie",
+  "beauty",
+  "retouch",
+  "facetune",
+  "makeup",
+  "yuanqi",
+  "元气",
+  "qingyan",
+  "清颜",
+  "photo editor",
+  "picsart",
+  "snapspeed",
+  "vsco",
+  "lightroom",
+  "photoshop", // plain Photoshop retouching is still a real-photo edit
+];
+
+// Social / messaging app exports. These usually strip EXIF and re-compress,
+// but the content is overwhelmingly real photos.
+const SOCIAL_APP_SIGNATURES = [
+  "wechat",
+  "微信",
+  "mmexport",
+  "moments",
+  "朋友圈",
+  "whatsapp",
+  "telegram",
+  "line",
+  "instagram",
+  "snapchat",
+  "tiktok",
+  "douyin",
+  "抖音",
+  "kuaishou",
+  "快手",
+  "weibo",
+  "微博",
+  "xiaohongshu",
+  "小红书",
+];
+
 /** Detect image container format from magic bytes (not reliant on extension). */
 export function detectFormat(buffer: Buffer): ImageFormat {
   if (buffer.length < 12) return "unknown";
@@ -114,8 +192,72 @@ export function detectFormat(buffer: Buffer): ImageFormat {
 
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 
+/** Extract real/AI leaning signals from the original filename.
+ *  WeChat exports (mmexport...), camera roll names (IMG_, DSC_) and beauty-app
+ *  filenames are strong indicators of a real photo that has been retouched /
+ *  re-compressed, NOT an AI generation.
+ */
+export function analyzeFilename(
+  filename: string | undefined,
+  t: (key: string, params?: Record<string, string | number>) => string
+): { signals: ExifSignal[]; lean: SignalLean } {
+  const signals: ExifSignal[] = [];
+  if (!filename) return { signals, lean: "neutral" };
+
+  const lower = filename.toLowerCase();
+  const realStrength = { value: 0 };
+  const aiStrength = { value: 0 };
+
+  // Social / messaging app export patterns
+  const socialMatches = SOCIAL_APP_SIGNATURES.filter((sig) => lower.includes(sig.toLowerCase()));
+  if (socialMatches.length > 0) {
+    realStrength.value += 0.35;
+    signals.push({
+      key: "filename_social_app",
+      label: t("evidence.filename_social_app"),
+      detail: t("evidence.filename_social_app_detail", { name: socialMatches[0] }),
+      lean: "real",
+      weight: -0.35,
+    });
+  }
+
+  // Camera-roll patterns (IMG_, DSC_, P_ followed by digits, etc.)
+  const cameraRollPattern = /(?:^|[/_\\])(?:img|dsc|p\d+|100|101|102)[_-]?\d{4,}/i;
+  if (cameraRollPattern.test(filename)) {
+    realStrength.value += 0.25;
+    signals.push({
+      key: "filename_camera_roll",
+      label: t("evidence.filename_camera_roll"),
+      detail: t("evidence.filename_camera_roll_detail"),
+      lean: "real",
+      weight: -0.25,
+    });
+  }
+
+  // Beauty / retouching app names in filename
+  const beautyMatches = BEAUTY_APP_SIGNATURES.filter((sig) => lower.includes(sig.toLowerCase()));
+  if (beautyMatches.length > 0) {
+    realStrength.value += 0.3;
+    signals.push({
+      key: "filename_beauty_app",
+      label: t("evidence.filename_beauty_app"),
+      detail: t("evidence.filename_beauty_app_detail", { name: beautyMatches[0] }),
+      lean: "real",
+      weight: -0.3,
+    });
+  }
+
+  let lean: SignalLean = "neutral";
+  if (realStrength.value > 0.3) lean = "real";
+  else if (realStrength.value > 0) lean = "real";
+  // No AI-leaning filename patterns currently defined.
+
+  return { signals, lean };
+}
+
 export async function analyzeExif(
   imageBuffer: Buffer,
+  filename: string | undefined,
   locale: ServerLocale = "zh"
 ): Promise<ExifResult> {
   const t = (key: string, params?: Record<string, string | number>) =>
@@ -135,7 +277,7 @@ export async function analyzeExif(
     });
   } catch {
     // Corrupt / unsupported container — NEUTRAL, not AI.
-    return buildNeutral(format, t, "evidence.parse_failed", "evidence.parse_failed_detail");
+    return buildNeutral(format, filename, t, "evidence.parse_failed", "evidence.parse_failed_detail");
   }
 
   const hasAny = !!exifData && Object.keys(exifData).length > 0;
@@ -145,12 +287,13 @@ export async function analyzeExif(
     if (format === "png" || format === "webp") {
       return buildNeutral(
         format,
+        filename,
         t,
         "evidence.no_exif_digital",
         "evidence.no_exif_digital_detail"
       );
     }
-    return buildNeutral(format, t, "evidence.no_exif", "evidence.no_exif_detail_real");
+    return buildNeutral(format, filename, t, "evidence.no_exif", "evidence.no_exif_detail_real");
   }
 
   const meta = exifData!; // guaranteed non-null past the !hasAny return above
@@ -255,6 +398,7 @@ export async function analyzeExif(
   if (software) {
     const lowerSoftware = software.toLowerCase();
     const matchedAI = AI_SOFTWARE_SIGNATURES.find((sig) => lowerSoftware.includes(sig));
+    const matchedBeauty = BEAUTY_APP_SIGNATURES.find((sig) => lowerSoftware.includes(sig.toLowerCase()));
     if (matchedAI) {
       aiStrength += 0.5;
       evidence.push({
@@ -268,6 +412,20 @@ export async function analyzeExif(
         detail: t("evidence.ai_software_detail", { software }),
         lean: "ai",
         weight: 0.5,
+      });
+    } else if (matchedBeauty) {
+      realStrength += 0.35;
+      evidence.push({
+        type: "real",
+        label: t("evidence.beauty_app_software"),
+        detail: t("evidence.beauty_app_software_detail", { software }),
+      });
+      signals.push({
+        key: "beauty_app_software",
+        label: t("evidence.beauty_app_software"),
+        detail: t("evidence.beauty_app_software_detail", { software }),
+        lean: "real",
+        weight: -0.35,
       });
     } else {
       evidence.push({
@@ -301,6 +459,15 @@ export async function analyzeExif(
   realStrength = clamp(realStrength, 0, 1);
   aiStrength = clamp(aiStrength, 0, 1);
 
+  // Filename signals (WeChat export, beauty app names, camera roll patterns).
+  const filenameAnalysis = analyzeFilename(filename, t);
+  for (const s of filenameAnalysis.signals) {
+    if (s.lean === "real") realStrength += Math.abs(s.weight);
+    if (s.lean === "ai") aiStrength += Math.abs(s.weight);
+  }
+  realStrength = clamp(realStrength, 0, 1);
+  aiStrength = clamp(aiStrength, 0, 1);
+
   // Moderator score: centered at 0.5, nudged by net signal.
   const score = clamp(0.5 + (aiStrength - realStrength) * 0.3, 0.05, 0.95);
 
@@ -317,46 +484,53 @@ export async function analyzeExif(
     aiStrength,
     format,
     evidence,
-    signals,
+    signals: [...signals, ...filenameAnalysis.signals],
+    filenameSignals: filenameAnalysis.signals,
+    filenameLean: filenameAnalysis.lean,
   };
 }
 
 function buildNeutral(
   format: ImageFormat,
+  filename: string | undefined,
   t: (key: string, params?: Record<string, string | number>) => string,
   labelKey: string,
   detailKey: string
 ): ExifResult {
+  const filenameAnalysis = analyzeFilename(filename, t);
+  const baseSignals: ExifSignal[] = [
+    {
+      key: "no_exif",
+      label: t(labelKey),
+      detail: t(detailKey),
+      lean: "neutral",
+      weight: 0,
+    },
+    {
+      key: "format",
+      label: t("evidence.format_digital"),
+      detail: t("evidence.format_digital_detail", { format: format.toUpperCase() }),
+      lean: "neutral",
+      weight: 0,
+    },
+  ];
   return {
     score: 0.5,
     hasExif: false,
     fieldCount: 0,
-    category: "neutral",
-    realStrength: 0,
+    category: filenameAnalysis.lean,
+    realStrength: filenameAnalysis.lean === "real" ? 0.25 : 0,
     aiStrength: 0,
     format,
     evidence: [
       {
-        type: "neutral",
-        label: t(labelKey),
-        detail: t(detailKey),
+        type: filenameAnalysis.lean === "real" ? "real" : "neutral",
+        label: filenameAnalysis.signals[0]?.label ?? t(labelKey),
+        detail: filenameAnalysis.signals[0]?.detail ?? t(detailKey),
       },
     ],
-    signals: [
-      {
-        key: "no_exif",
-        label: t(labelKey),
-        detail: t(detailKey),
-        lean: "neutral",
-        weight: 0,
-      },
-      {
-        key: "format",
-        label: t("evidence.format_digital"),
-        detail: t("evidence.format_digital_detail", { format: format.toUpperCase() }),
-        lean: "neutral",
-        weight: 0,
-      },
-    ],
+    signals: baseSignals,
+    filenameSignals: filenameAnalysis.signals,
+    filenameLean: filenameAnalysis.lean,
   };
 }

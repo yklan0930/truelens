@@ -58,6 +58,7 @@ const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(mi
 export async function analyzeImage(
   imageBuffer: Buffer,
   hfToken: string,
+  filename?: string,
   locale: ServerLocale = "zh"
 ): Promise<DetectionResult> {
   const t = (key: string, params?: Record<string, string | number>) =>
@@ -68,7 +69,7 @@ export async function analyzeImage(
   // Run both engines in parallel
   const [hfResult, exifResult] = await Promise.allSettled([
     detectWithHuggingFace(imageBuffer, hfToken, locale),
-    analyzeExif(imageBuffer, locale),
+    analyzeExif(imageBuffer, filename, locale),
   ]);
 
   const engines: DetectionResult["engines"] = {};
@@ -138,6 +139,41 @@ export async function analyzeImage(
     }
   }
 
+  // --- Retouching / beauty moderation ---
+  // Beauty apps and social-compressed real photos share surface-level statistics
+  // with AI generations (smooth skin, sharpened eyes, homogenous tones). If we
+  // see filename or EXIF indicators of such processing, we lower the AI
+  // probability more aggressively, but only when the visual model is not
+  // extremely confident (aiScore >= 0.95 is treated as a genuine AI signal).
+  const hasRetouchingSignal = exif?.filenameSignals?.some(
+    (s) => s.key === "filename_beauty_app" || s.key === "filename_social_app"
+  );
+  const hasBeautySoftwareSignal = exif?.signals.some(
+    (s) => s.key === "beauty_app_software"
+  );
+
+  if (exif && (hasRetouchingSignal || hasBeautySoftwareSignal) && aiProb < 0.95) {
+    // Beauty / social-compressed real photos share surface-level statistics with
+    // AI generations (smooth skin, sharpened eyes, homogenous tones). When such
+    // indicators are present, we compress the AI probability toward 0.5 instead
+    // of a flat subtraction, because the visual model alone is not reliable here.
+    const compression = hasBeautySoftwareSignal ? 0.45 : 0.6;
+    aiProb = 0.5 + (aiProb - 0.5) * compression;
+    evidence.push({
+      source: t("evidence.source_exif"),
+      type: "real",
+      label: t("evidence.retouching_hint"),
+      detail: t("evidence.retouching_hint_detail"),
+    });
+    signals.push({
+      category: "exif",
+      label: t("evidence.retouching_hint"),
+      detail: t("evidence.retouching_hint_detail"),
+      lean: "real",
+      score: 25,
+    });
+  }
+
   const aiPercentRaw = Math.round(aiProb * 100);
 
   // --- Confidence calibration ---
@@ -170,9 +206,17 @@ export async function analyzeImage(
   // --- Verdict ---
   let verdict: DetectionResult["verdict"];
   const aiPercent = aiPercentRaw;
-  if (aiPercent >= 65) {
+  // When a retouching / social-export signal is present, the visual model's
+  // "likely AI" verdict is less reliable. We raise the threshold to be more
+  // conservative — these cases often fall into "uncertain" and prompt the user
+  // to consider the image as a retouched real photo rather than AI-generated.
+  const retouchingSignal =
+    (hasRetouchingSignal || hasBeautySoftwareSignal) && aiPercent < 95;
+  const aiThreshold = retouchingSignal ? 75 : 65;
+  const realThreshold = 35;
+  if (aiPercent >= aiThreshold) {
     verdict = "likely_ai";
-  } else if (aiPercent <= 35) {
+  } else if (aiPercent <= realThreshold) {
     verdict = "likely_real";
   } else {
     verdict = "uncertain";

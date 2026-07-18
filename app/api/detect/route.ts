@@ -223,8 +223,8 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await file.arrayBuffer();
     const imageBuffer = Buffer.from(arrayBuffer);
 
-    // --- Run analysis with locale ---
-    const result = await analyzeImage(imageBuffer, hfToken, locale);
+    // --- Run analysis with locale and original filename ---
+    const result = await analyzeImage(imageBuffer, hfToken, file.name, locale);
 
     // --- Entitlement: hide the professional report from trial users ---
     // Free/anonymous users only receive the verdict + probability. The detailed
