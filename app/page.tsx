@@ -1035,6 +1035,7 @@ export default function Home() {
               </button>
             </div>
             <p className="text-sm text-slate-400 mt-4">{t("upload.supportedFormats")}</p>
+            <p className="text-xs text-slate-400 mt-1 max-w-md">{t("upload.note")}</p>
             {!isAuthenticated && !showHistory && (
               <p className="mt-3 text-sm text-indigo-600 font-medium">
                 <button

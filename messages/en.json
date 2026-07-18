@@ -35,6 +35,7 @@
     "selectImage": "Choose Image",
     "takePhoto": "Take Photo",
     "supportedFormats": "Supports JPG, PNG, WebP, up to 10MB",
+    "note": "Images are auto-optimized on upload — no need to resize manually. For best accuracy, use a clear original photo.",
     "quotaExhaustedHint": "Daily free limit reached. Results are for reference only.",
     "loginEncouragement": "Sign in for 5 free detections/day →",
     "loginEncouragementExhausted": "Sign in now for 5 free daily detections. Create a free account →",
