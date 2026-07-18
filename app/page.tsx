@@ -436,26 +436,39 @@ export default function Home() {
       // limit (esp. for PNG screenshots / large phone photos). If compression
       // fails or the result is still too large, retry with more aggressive
       // settings before giving up.
+      //
+      // IMPORTANT: files already under 2 MB are sent AS-IS without any
+      // canvas recompression.  Client-side bilinear/bicubic resampling destroys
+      // high-frequency fingerprints (moiré at 2–5 px, sensor noise
+      // heteroscedasticity, JPEG 8×8 block grid) that our server-side detectors
+      // (screen.ts, texture.ts) rely on.  Skipping compression for small files
+      // preserves those signals and gives the HF vision model a sharper input.
       let blob: Blob | null = null;
-      const compressionAttempts: Array<[number, number]> = [
-        [1024, 0.82],
-        [800, 0.70],
-        [640, 0.60],
-      ];
-      for (const [maxDim, quality] of compressionAttempts) {
-        try {
-          const candidate: Blob = fileRef.current != null
-            ? await compressImage(fileRef.current, maxDim, quality)
-            : await (await fetch(image)).blob();
-          blob = candidate;
-          // Safety net: if still huge after compression, try next level
-          if (blob.size <= 3 * 1024 * 1024) break; // 3 MB safety margin
-        } catch {
-          // Compression failed at this level, try next
+      const originalBlob: Blob = fileRef.current ?? await (await fetch(image)).blob();
+      if (originalBlob.size <= 2 * 1024 * 1024) {
+        // Small enough — send original, no detail loss.
+        blob = originalBlob;
+      } else {
+        const compressionAttempts: Array<[number, number]> = [
+          [1920, 0.85],
+          [1440, 0.80],
+          [1024, 0.75],
+        ];
+        for (const [maxDim, quality] of compressionAttempts) {
+          try {
+            const candidate: Blob = fileRef.current != null
+              ? await compressImage(fileRef.current, maxDim, quality)
+              : await (await fetch(image)).blob();
+            blob = candidate;
+            // Safety net: if still huge after compression, try next level
+            if (blob.size <= 3 * 1024 * 1024) break; // 3 MB safety margin
+          } catch {
+            // Compression failed at this level, try next
+          }
         }
       }
       if (!blob) {
-        blob = await (await fetch(image)).blob(); // last-resort fallback
+        blob = originalBlob; // last-resort fallback
       }
 
       const formData = new FormData();
