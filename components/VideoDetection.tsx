@@ -185,20 +185,40 @@ export default function VideoDetection() {
           ref={fileInputRef}
           type="file"
           accept="video/*"
+          capture="environment"
           className="hidden"
           onChange={onInputChange}
         />
         <div className="text-4xl sm:text-5xl mb-4">🎬</div>
         <p className="text-lg font-medium text-slate-700 mb-1">{t("video.dropHint")}</p>
-        <button
-          className="mt-3 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 px-6 rounded-xl transition-colors min-h-[48px] flex items-center gap-2"
-          onClick={(e) => {
-            e.stopPropagation();
-            fileInputRef.current?.click();
-          }}
-        >
-          <span>📁</span> {t("video.selectVideo")}
-        </button>
+        <div className="flex flex-col sm:flex-row gap-3 mt-3">
+          <button
+            className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 px-6 rounded-xl transition-colors min-h-[48px] flex items-center gap-2"
+            onClick={(e) => {
+              e.stopPropagation();
+              fileInputRef.current?.click();
+            }}
+          >
+            <span>📁</span> {t("video.selectVideo")}
+          </button>
+          <button
+            className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-3 px-6 rounded-xl transition-colors min-h-[48px] flex items-center gap-2 border border-slate-200"
+            onClick={(e) => {
+              e.stopPropagation();
+              const input = document.createElement("input");
+              input.type = "file";
+              input.accept = "video/*";
+              input.capture = "environment";
+              input.onchange = (ev) => {
+                const f = (ev.target as HTMLInputElement).files?.[0];
+                if (f) handleFile(f);
+              };
+              input.click();
+            }}
+          >
+            <span>🎥</span> {t("video.takeVideo")}
+          </button>
+        </div>
         <p className="text-sm text-slate-400 mt-4">{t("video.supportedVideo")}</p>
         <p className="text-xs text-amber-500/90 mt-1 max-w-md">
           <span className="font-bold text-red-600">{t("video.longNote")}</span>

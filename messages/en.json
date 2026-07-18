@@ -113,6 +113,13 @@
     "email": "Email",
     "close": "Close"
   },
+  "pwa": {
+    "installTitle": "Add TrueLens to Home Screen",
+    "installDesc": "Install for quick access, just like a native app",
+    "install": "Install",
+    "addHome": "Add to Home",
+    "shareInstallText": "Check out TrueLens — AI content authenticity detection"
+  },
   "video": {
     "tabImage": "Image",
     "tabVideo": "Video",
@@ -130,6 +137,7 @@
     "frames": "Analyzed {n} frames",
     "dropHint": "Drop or click to select a video",
     "selectVideo": "Select Video",
+    "takeVideo": "Take Video",
     "supportedVideo": "MP4 / MOV / WebM and other common formats",
     "fileTooLarge": "Video file is too large (max 500MB)",
     "errorNoUpload": "Detection engine is enabled but upload storage (BLOB_READ_WRITE_TOKEN) is not configured; video cannot be processed yet",

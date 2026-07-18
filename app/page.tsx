@@ -929,16 +929,16 @@ export default function Home() {
         )}
 
         {/* 图片 / 视频 切换 Tab */}
-        <div className="flex items-center gap-2 mb-6 bg-white rounded-xl border border-slate-200 p-1 w-fit">
+        <div className="flex items-stretch gap-2 mb-6 bg-white rounded-xl border border-slate-200 p-1 w-full sm:w-fit">
           <button
             onClick={() => setMode("image")}
-            className={`min-h-[44px] px-5 rounded-lg font-medium text-sm transition-colors ${mode === "image" ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}
+            className={`flex-1 sm:flex-none min-h-[44px] px-5 rounded-lg font-medium text-sm transition-colors ${mode === "image" ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}
           >
             🖼️ {t("video.tabImage")}
           </button>
           <button
             onClick={() => setMode("video")}
-            className={`min-h-[44px] px-5 rounded-lg font-medium text-sm transition-colors ${mode === "video" ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}
+            className={`flex-1 sm:flex-none min-h-[44px] px-5 rounded-lg font-medium text-sm transition-colors ${mode === "video" ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}
           >
             🎬 {t("video.tabVideo")}
           </button>

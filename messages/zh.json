@@ -113,6 +113,13 @@
     "email": "邮件",
     "close": "关闭"
   },
+  "pwa": {
+    "installTitle": "将 TrueLens 添加到主屏幕",
+    "installDesc": "安装后可从桌面直接打开，体验更像原生 App",
+    "install": "安装",
+    "addHome": "添加到主屏幕",
+    "shareInstallText": "推荐你试试 TrueLens — AI 内容真伪检测"
+  },
   "video": {
     "tabImage": "图片",
     "tabVideo": "视频",
@@ -130,6 +137,7 @@
     "frames": "分析 {n} 帧",
     "dropHint": "拖入或点击选择视频",
     "selectVideo": "选择视频",
+    "takeVideo": "拍摄视频",
     "supportedVideo": "支持 MP4 / MOV / WebM 等常见格式",
     "fileTooLarge": "视频文件过大（上限 500MB）",
     "errorNoUpload": "已启用检测引擎但未配置上传存储（BLOB_READ_WRITE_TOKEN），暂无法处理视频",

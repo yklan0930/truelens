@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Analytics } from "@vercel/analytics/react";
 import "./globals.css";
 import SWRegister from "./sw-register";
+import PwaInstallPrompt from "@/components/PwaInstallPrompt";
 import I18nProvider from "./providers";
 
 export const metadata: Metadata = {
@@ -122,7 +123,10 @@ export default function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
-        <I18nProvider>{children}</I18nProvider>
+        <I18nProvider>
+          {children}
+          <PwaInstallPrompt />
+        </I18nProvider>
         <SWRegister />
         <Analytics />
       </body>
