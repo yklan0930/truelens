@@ -83,7 +83,14 @@
     "cardTitle": "🔍 TrueLens",
     "cardAiProb": "AI Probability",
     "cardConfidence": "Confidence {confidence}% · {ms}ms",
-    "cardFooter": "truelens.top · AI Content Detection"
+    "cardFooter": "truelens.top · AI Content Detection",
+    "exportPdf": "Export PDF",
+    "exportingPdf": "Exporting..."
+  },
+  "pdf": {
+    "title": "AI Content Detection Report",
+    "analyzed": "Analyzed",
+    "generatedAt": "Generated at"
   },
   "feedback": {
     "title": "Was this accurate?",

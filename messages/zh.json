@@ -83,7 +83,14 @@
     "cardTitle": "🔍 TrueLens",
     "cardAiProb": "AI 生成概率",
     "cardConfidence": "置信度 {confidence}% · 耗时 {ms}ms",
-    "cardFooter": "truelens.top · AI 内容真伪检测"
+    "cardFooter": "truelens.top · AI 内容真伪检测",
+    "exportPdf": "导出 PDF",
+    "exportingPdf": "导出中..."
+  },
+  "pdf": {
+    "title": "AI 内容检测报告",
+    "analyzed": "检测对象",
+    "generatedAt": "生成时间"
   },
   "feedback": {
     "title": "检测准确吗？",

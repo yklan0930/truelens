@@ -355,6 +355,7 @@ export default function Home() {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [feedbackState, setFeedbackState] = useState<"none" | "good" | "bad" | "submitted">("none");
+  const [exportingPdf, setExportingPdf] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState("");
   const [shareLoading, setShareLoading] = useState(false);
@@ -613,6 +614,33 @@ export default function Home() {
       // Share cancelled or failed — no need to alert
     } finally {
       setShareLoading(false);
+    }
+  };
+
+  // --- Export PDF report (Pro / Business / Admin only) ---
+  const handleExportPdf = async () => {
+    if (!result) return;
+    setExportingPdf(true);
+    try {
+      const { exportResultPdf } = await import("../lib/exportPdf");
+      await exportResultPdf({
+        aiProbability: result.aiProbability,
+        verdict: result.verdict,
+        confidence: result.confidence,
+        evidence: result.evidence,
+        signals: result.signals,
+        screenRephoto: result.screenRephoto,
+        processingTimeMs: result.processingTimeMs,
+        fileName: result.fileName,
+        fileSize: result.fileSize,
+        imageDataUrl: image,
+        locale,
+        t,
+      });
+    } catch (err) {
+      console.error("[TrueLens] PDF export failed:", err);
+    } finally {
+      setExportingPdf(false);
     }
   };
 
@@ -1314,9 +1342,19 @@ export default function Home() {
                 {/* Evidence / Professional Report (gated by membership) */}
                 {showDetailed ? (
                   <div className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6">
-                    <h3 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
-                      <span>🔍</span> {t("result.evidenceTitle")}
-                    </h3>
+                    <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
+                      <h3 className="font-bold text-slate-900 flex items-center gap-2">
+                        <span>🔍</span> {t("result.evidenceTitle")}
+                      </h3>
+                      <button
+                        onClick={handleExportPdf}
+                        disabled={exportingPdf}
+                        className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-60 text-white text-sm font-medium py-2 px-4 rounded-xl transition-colors min-h-[40px]"
+                      >
+                        <span>📄</span>
+                        {exportingPdf ? t("share.exportingPdf") : t("share.exportPdf")}
+                      </button>
+                    </div>
                     <div className="space-y-3">
                       {(result.signals && result.signals.length > 0
                         ? result.signals.map((s) => ({
