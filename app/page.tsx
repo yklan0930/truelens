@@ -4,6 +4,8 @@ import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { useT, useLocale, type Locale } from "@/lib/i18n/context";
 import HeaderAuth from "@/components/auth/HeaderAuth";
+import VideoDetection from "@/components/VideoDetection";
+import SocialShare from "@/components/SocialShare";
 import { generateShareCard, makeShareThumb, type ShareCardLabels } from "@/lib/shareCard";
 
 interface Evidence {
@@ -291,6 +293,7 @@ export default function Home() {
   const shareIdRef = useRef<string | null>(null);
   const [challengeSelected, setChallengeSelected] = useState<"left" | "right" | null>(null);
   const [currentChallenge, setCurrentChallenge] = useState<ChallengePair | null>(null);
+  const [mode, setMode] = useState<"image" | "video">("image");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<File | null>(null);
 
@@ -596,13 +599,14 @@ export default function Home() {
             ? t("result.verdict_real")
             : t("result.verdict_uncertain");
       if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        const shareUrl = (await createShareLink()) ?? "https://truelens.top";
         await navigator.share({
           title: t("share.title"),
           text: t("share.textTemplate", {
             aiProbability: result.aiProbability,
             verdict: verdictText,
           }),
-          url: "https://truelens.top",
+          url: shareUrl,
           files: [file],
         });
       } else {
@@ -663,6 +667,13 @@ export default function Home() {
     setCopied(true);
     setTimeout(() => setCopied(false), 3000);
   };
+
+  const verdictLabel = (v: "likely_ai" | "likely_real" | "uncertain") =>
+    v === "likely_ai"
+      ? t("result.verdict_ai")
+      : v === "likely_real"
+        ? t("result.verdict_real")
+        : t("result.verdict_uncertain");
 
   // --- Export PDF report (Pro / Business / Admin only) ---
   const handleExportPdf = async () => {
@@ -917,8 +928,24 @@ export default function Home() {
           </div>
         )}
 
+        {/* 图片 / 视频 切换 Tab */}
+        <div className="flex items-center gap-2 mb-6 bg-white rounded-xl border border-slate-200 p-1 w-fit">
+          <button
+            onClick={() => setMode("image")}
+            className={`min-h-[44px] px-5 rounded-lg font-medium text-sm transition-colors ${mode === "image" ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}
+          >
+            🖼️ {t("video.tabImage")}
+          </button>
+          <button
+            onClick={() => setMode("video")}
+            className={`min-h-[44px] px-5 rounded-lg font-medium text-sm transition-colors ${mode === "video" ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}
+          >
+            🎬 {t("video.tabVideo")}
+          </button>
+        </div>
+
         {/* Challenge */}
-        {!image && currentChallenge && (
+        {!image && mode === "image" && currentChallenge && (
           <section className="mb-8 sm:mb-10">
             {challengeSelected === null ? (
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 sm:p-6">
@@ -1065,7 +1092,7 @@ export default function Home() {
         )}
 
         {/* Hero */}
-        {!image && (
+        {!image && mode === "image" && (
           <div className="text-center mb-6 sm:mb-8">
             <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-3">
               {t("hero.title")}
@@ -1077,7 +1104,7 @@ export default function Home() {
         )}
 
         {/* Upload Area */}
-        {!image && (
+        {!image && mode === "image" && (
           <div
             id="upload-section"
             onDragOver={(e) => {
@@ -1161,7 +1188,7 @@ export default function Home() {
         )}
 
         {/* Image Preview + Result */}
-        {image && (
+        {image && mode === "image" && (
           <div className="space-y-5">
             {/* Image Preview */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
@@ -1243,7 +1270,7 @@ export default function Home() {
             )}
 
             {/* Result */}
-            {result && (
+            {result && mode === "image" && (
               <div id="result-section" className="space-y-4 animate-in fade-in duration-500">
                 {/* Screen re-photo advisory: shown to ALL users (regardless of
                     membership) because the unreliable verdict needs explaining
@@ -1348,6 +1375,15 @@ export default function Home() {
                       <span>📋</span> {copied ? t("share.copied") : t("share.copyText")}
                     </button>
                   </div>
+
+                  <SocialShare
+                    linkResolver={createShareLink}
+                    shareText={t("share.textTemplate", {
+                      aiProbability: result.aiProbability,
+                      verdict: verdictLabel(result.verdict),
+                    })}
+                    shareTitle={t("share.title")}
+                  />
 
                   {shareToast && (
                     <p className="mt-2 text-xs text-indigo-600">{shareToast}</p>
@@ -1486,8 +1522,13 @@ export default function Home() {
           </div>
         )}
 
+        {/* Video detection mode */}
+        {mode === "video" && (
+          <VideoDetection />
+        )}
+
         {/* Features (when no image) */}
-        {!image && (
+        {!image && mode === "image" && (
           <>
           <div className="mt-12 grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="bg-white rounded-xl p-5 border border-slate-200">
