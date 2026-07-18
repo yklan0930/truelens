@@ -1037,7 +1037,10 @@ export default function Home() {
             </div>
             <p className="text-sm text-slate-400 mt-4">{t("upload.supportedFormats")}</p>
             <p className="text-xs text-slate-400 mt-1 max-w-md">{t("upload.note")}</p>
-            <p className="text-xs text-amber-500/90 mt-1 max-w-md">{t("upload.screenWarning")}</p>
+            <p className="text-xs text-amber-500/90 mt-1 max-w-md">
+              <span className="font-bold text-red-600">{t("upload.screenWarning")}</span>
+              <span>。{t("upload.screenWarningDetail")}</span>
+            </p>
             {!isAuthenticated && !showHistory && (
               <p className="mt-3 text-sm text-indigo-600 font-medium">
                 <button

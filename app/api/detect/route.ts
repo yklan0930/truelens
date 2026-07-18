@@ -300,6 +300,7 @@ export async function POST(request: NextRequest) {
         confidence: result.confidence,
         evidence: result.evidence,
         signals: result.signals,
+        screenRephoto: result.screenRephoto,
         processingTimeMs: result.processingTimeMs,
         fileName: file.name,
         fileSize: file.size,
