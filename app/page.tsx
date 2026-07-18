@@ -432,17 +432,31 @@ export default function Home() {
 
     try {
       // Compress the image on the client to stay under Vercel's 4.5MB request
-      // limit (esp. for PNG screenshots / large phone photos). Falls back to the
-      // original if compression is unsupported.
-      let blob: Blob;
-      try {
-        blob =
-          fileRef.current != null
-            ? await compressImage(fileRef.current, 1024, 0.82)
+      // limit (esp. for PNG screenshots / large phone photos). If compression
+      // fails or the result is still too large, retry with more aggressive
+      // settings before giving up.
+      let blob: Blob | null = null;
+      const compressionAttempts: Array<[number, number]> = [
+        [1024, 0.82],
+        [800, 0.70],
+        [640, 0.60],
+      ];
+      for (const [maxDim, quality] of compressionAttempts) {
+        try {
+          const candidate: Blob = fileRef.current != null
+            ? await compressImage(fileRef.current, maxDim, quality)
             : await (await fetch(image)).blob();
-      } catch {
-        blob = await (await fetch(image)).blob();
+          blob = candidate;
+          // Safety net: if still huge after compression, try next level
+          if (blob.size <= 3 * 1024 * 1024) break; // 3 MB safety margin
+        } catch {
+          // Compression failed at this level, try next
+        }
       }
+      if (!blob) {
+        blob = await (await fetch(image)).blob(); // last-resort fallback
+      }
+
       const formData = new FormData();
       formData.append("image", blob, fileName);
 
@@ -452,11 +466,19 @@ export default function Home() {
       });
 
       // Guard against non-JSON responses (e.g. Vercel edge 413 "Request Entity
-      // Too Large") so we surface a friendly message instead of a parse crash.
+      // Too Large", proxy errors, gateway timeouts) so we surface a friendly
+      // message instead of a raw JSON.parse crash.
       const contentType = res.headers.get("content-type") || "";
       let data: any;
       if (contentType.includes("application/json")) {
-        data = await res.json();
+        const text = await res.text();
+        try {
+          data = JSON.parse(text);
+        } catch {
+          // Server claimed JSON but body is not parseable — log and surface friendly error
+          console.error("[TrueLens] Malformed JSON from /api/detect:", text.slice(0, 300));
+          throw new Error(t("errors.serverError"));
+        }
       } else {
         const text = await res.text();
         console.error("[TrueLens] Non-JSON response from /api/detect:", text.slice(0, 200));

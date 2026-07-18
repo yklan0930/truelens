@@ -90,6 +90,19 @@ export async function POST(request: NextRequest) {
   const t = (key: string, params?: Record<string, string | number>) =>
     serverT(locale, key, params);
 
+  // --- Safety: reject obviously oversized requests before parsing ---
+  // Vercel edge / some proxies return raw HTML/text for oversized bodies,
+  // which crashes the client's res.json(). Catch it early with a proper JSON
+  // error response. The real limit (4.5 MB on Vercel free tier) is enforced
+  // by the platform; this is just a friendlier error message.
+  const contentLength = request.headers.get("content-length");
+  if (contentLength && parseInt(contentLength, 10) > 4.5 * 1024 * 1024) {
+    return NextResponse.json(
+      { error: t("errors.fileTooLarge") },
+      { status: 413 }
+    );
+  }
+
   try {
     // --- Rate limiting ---
     const clientIP = getClientIP(request);
