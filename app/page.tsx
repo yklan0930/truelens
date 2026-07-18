@@ -172,9 +172,37 @@ function getHistory(): HistoryItem[] {
 
 function addToHistory(item: HistoryItem) {
   if (typeof window === "undefined") return;
-  const history = getHistory();
-  history.unshift(item);
-  localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(0, MAX_HISTORY)));
+  const persist = (items: HistoryItem[]) => {
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(items.slice(0, MAX_HISTORY)));
+  };
+  try {
+    const history = getHistory();
+    history.unshift(item);
+    persist(history);
+  } catch {
+    // Quota exceeded — shrink by dropping oldest entries, then retry.
+    try {
+      let history = getHistory();
+      history.unshift(item);
+      while (history.length > 1) {
+        history = history.slice(0, history.length - 1);
+        try {
+          persist(history);
+          break;
+        } catch {
+          // keep shrinking
+        }
+      }
+    } catch {
+      // Last resort: clear and store only the latest item.
+      try {
+        localStorage.removeItem(HISTORY_KEY);
+        persist([item]);
+      } catch {
+        // storage failed — history is non-essential, ignore
+      }
+    }
+  }
 }
 
 function clearHistory() {
@@ -260,6 +288,52 @@ async function generateShareCard(
   });
 }
 
+// --- Client-side image compression (avoids Vercel's 4.5MB request-body limit) ---
+// Large phone photos / PNG screenshots are downscaled to a max dimension and
+// re-encoded as JPEG, which keeps uploads small and fast.
+async function compressImage(
+  file: File,
+  maxDim = 1024,
+  quality = 0.82
+): Promise<Blob> {
+  const bitmap = await createImageBitmap(file);
+  let { width, height } = bitmap;
+  if (width > maxDim || height > maxDim) {
+    const scale = Math.min(maxDim / width, maxDim / height);
+    width = Math.round(width * scale);
+    height = Math.round(height * scale);
+  }
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("canvas unsupported");
+  ctx.drawImage(bitmap, 0, 0, width, height);
+  if (typeof bitmap.close === "function") bitmap.close();
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (b) => (b ? resolve(b) : reject(new Error("toBlob failed"))),
+      "image/jpeg",
+      quality
+    );
+  });
+}
+
+// --- Tiny thumbnail for history (keeps localStorage well under the 5MB quota) ---
+async function makeThumbnail(dataUrl: string, maxDim = 96): Promise<string> {
+  const img = new Image();
+  img.src = dataUrl;
+  await img.decode();
+  const scale = Math.min(maxDim / img.width, maxDim / img.height, 1);
+  const w = Math.max(1, Math.round(img.width * scale));
+  const h = Math.max(1, Math.round(img.height * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  canvas.getContext("2d")!.drawImage(img, 0, 0, w, h);
+  return canvas.toDataURL("image/jpeg", 0.6);
+}
+
 export default function Home() {
   const t = useT();
   const { locale, setLocale } = useLocale();
@@ -287,6 +361,7 @@ export default function Home() {
   const [challengeSelected, setChallengeSelected] = useState<"left" | "right" | null>(null);
   const [currentChallenge, setCurrentChallenge] = useState<ChallengePair | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileRef = useRef<File | null>(null);
 
   // Pick a random challenge on mount (client-side only)
   useEffect(() => {
@@ -318,6 +393,7 @@ export default function Home() {
       setResult(null);
       setFileName(file.name);
       setFeedbackState("none");
+      fileRef.current = file;
 
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -355,8 +431,18 @@ export default function Home() {
     setFeedbackState("none");
 
     try {
-      const response = await fetch(image);
-      const blob = await response.blob();
+      // Compress the image on the client to stay under Vercel's 4.5MB request
+      // limit (esp. for PNG screenshots / large phone photos). Falls back to the
+      // original if compression is unsupported.
+      let blob: Blob;
+      try {
+        blob =
+          fileRef.current != null
+            ? await compressImage(fileRef.current, 1024, 0.82)
+            : await (await fetch(image)).blob();
+      } catch {
+        blob = await (await fetch(image)).blob();
+      }
       const formData = new FormData();
       formData.append("image", blob, fileName);
 
@@ -365,7 +451,17 @@ export default function Home() {
         body: formData,
       });
 
-      const data = await res.json();
+      // Guard against non-JSON responses (e.g. Vercel edge 413 "Request Entity
+      // Too Large") so we surface a friendly message instead of a parse crash.
+      const contentType = res.headers.get("content-type") || "";
+      let data: any;
+      if (contentType.includes("application/json")) {
+        data = await res.json();
+      } else {
+        const text = await res.text();
+        console.error("[TrueLens] Non-JSON response from /api/detect:", text.slice(0, 200));
+        throw new Error(t("errors.serverError"));
+      }
 
       if (!res.ok) {
         throw new Error(data.error || t("errors.detectFailed"));
@@ -390,9 +486,18 @@ export default function Home() {
         setQuota(getRemainingAnonQuota());
       }
 
+      // Store a small thumbnail (not the full base64) to avoid blowing the
+      // localStorage 5MB quota.
+      let thumbnail = image;
+      try {
+        thumbnail = await makeThumbnail(image, 96);
+      } catch {
+        // keep the full data URL as fallback
+      }
+
       addToHistory({
         id: `${Date.now()}`,
-        thumbnail: image,
+        thumbnail,
         fileName: data.result.fileName,
         aiProbability: data.result.aiProbability,
         verdict: data.result.verdict,

@@ -222,6 +222,7 @@
     "timeout": "Detection timed out. Please retry. The model may still be loading.",
     "networkError": "Network connection failed. Please check your connection and retry.",
     "genericError": "Detection failed. Please try again.",
+    "serverError": "The server returned an unexpected response (image may be too large or a network issue). Please retry or use a smaller image.",
     "proComing": "Pro coming soon: Unlimited detection + Video detection + Detailed reports"
   },
   "api": {
