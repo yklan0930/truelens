@@ -36,6 +36,7 @@
     "takePhoto": "Take Photo",
     "supportedFormats": "Supports JPG, PNG, WebP, up to 10MB",
     "note": "Images are auto-optimized on upload — no need to resize manually. For best accuracy, use a clear original photo.",
+    "screenWarning": "Do not upload photos taken of a screen with another camera (e.g. photographing a computer or phone display). These carry moiré / pixel-grid patterns that are easily mis-flagged as AI. For screen content, upload the original screenshot file instead.",
     "quotaExhaustedHint": "Daily free limit reached. Results are for reference only.",
     "loginEncouragement": "Sign in for 5 free detections/day →",
     "loginEncouragementExhausted": "Sign in now for 5 free daily detections. Create a free account →",
@@ -66,7 +67,8 @@
     "evidenceTitle": "Detection Evidence",
     "fileSize": "File size: {size} KB",
     "processingTime": "Processing time: {ms}ms",
-    "disclaimer": "TrueLens results are for reference only and do not constitute legal evidence. AI detection technology is still evolving and may produce errors."
+    "disclaimer": "TrueLens results are for reference only and do not constitute legal evidence. AI detection technology is still evolving and may produce errors.",
+    "screenTip": "⚠️ Possible screen re-photo: this image shows moiré / pixel-grid patterns typical of a photo taken of a screen. Such images are easily mis-flagged as AI. Upload the original screenshot file (not a camera photo of the screen) for a reliable result; the current verdict is for reference only."
   },
   "share": {
     "shareResult": "Share Result",

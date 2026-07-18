@@ -26,6 +26,7 @@ interface DetectionResult {
   confidence: number;
   evidence: Evidence[];
   signals?: SignalItem[];
+  screenRephoto?: boolean;
   processingTimeMs: number;
   fileName: string;
   fileSize: number;
@@ -1036,6 +1037,7 @@ export default function Home() {
             </div>
             <p className="text-sm text-slate-400 mt-4">{t("upload.supportedFormats")}</p>
             <p className="text-xs text-slate-400 mt-1 max-w-md">{t("upload.note")}</p>
+            <p className="text-xs text-amber-500/90 mt-1 max-w-md">{t("upload.screenWarning")}</p>
             {!isAuthenticated && !showHistory && (
               <p className="mt-3 text-sm text-indigo-600 font-medium">
                 <button
@@ -1280,6 +1282,18 @@ export default function Home() {
                     </div>
                   )}
                 </div>
+
+                {/* Screen re-photo advisory: detected by screen.ts, shown to ALL
+                    users (regardless of membership) because the unreliable verdict
+                    needs explaining even for anonymous / free-tier users. */}
+                {result.screenRephoto && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 mb-4">
+                    <p className="text-sm text-amber-800 flex items-start gap-2">
+                      <span className="text-base leading-none">⚠️</span>
+                      <span>{t("result.screenTip")}</span>
+                    </p>
+                  </div>
+                )}
 
                 {/* Evidence / Professional Report (gated by membership) */}
                 {showDetailed ? (

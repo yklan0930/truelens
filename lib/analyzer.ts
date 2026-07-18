@@ -42,6 +42,8 @@ export interface DetectionResult {
   signals?: SignalItem[];
   /** Short explanation of how confidence was calibrated (detailed report). */
   calibration?: string;
+  /** True when the image shows screen re-photo fingerprints (moiré / pixel grid). */
+  screenRephoto?: boolean;
   processingTimeMs: number;
 }
 
@@ -422,6 +424,7 @@ export async function analyzeImage(
     evidence,
     signals,
     calibration: calibrationNote || undefined,
+    screenRephoto: screen?.isScreenCapture ?? false,
     processingTimeMs: Date.now() - startTime,
   };
 }
