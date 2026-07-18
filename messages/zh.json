@@ -16,6 +16,19 @@
     "title": "这张图片是真人拍的，还是 AI 生成的？",
     "description": "上传图片，TrueLens 用深度学习模型 + 元数据分析给出 AI 生成概率和证据。准确率 88.9%，秒级出结果。"
   },
+  "challenge": {
+    "title": "你能分辨哪张是经过 AI 处理的吗？",
+    "subtitle": "下面两张照片极其相似，一张是真实拍摄，一张由 AI 生成。点击你认为是 AI 的那张。",
+    "photoA": "照片 A",
+    "photoB": "照片 B",
+    "correct": "猜对了！这张照片是 AI 生成的。",
+    "wrong": "猜错了！这张照片其实是真实相机拍摄的。",
+    "hint": "AI 常见痕迹：倒影过于完美、边缘过度平滑、天空/水面纹理重复。",
+    "cta": "上传图片，让 TrueLens 检测",
+    "tryAgain": "再猜一次",
+    "realLabel": "真实照片",
+    "aiLabel": "AI 生成"
+  },
   "upload": {
     "dropHint": "点击上传或拍照",
     "selectImage": "选择图片",

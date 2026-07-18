@@ -184,6 +184,7 @@ export default function Home() {
   const [feedbackMsg, setFeedbackMsg] = useState("");
   const [shareLoading, setShareLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [challengeSelected, setChallengeSelected] = useState<"left" | "right" | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -459,6 +460,13 @@ export default function Home() {
     setLocale(locale === "zh" ? "en" : "zh");
   };
 
+  const scrollToUpload = () => {
+    const el = document.getElementById("upload-section");
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100">
       {/* Header */}
@@ -572,6 +580,129 @@ export default function Home() {
           </div>
         )}
 
+        {/* Challenge */}
+        {!image && (
+          <section className="mb-8 sm:mb-10">
+            {challengeSelected === null ? (
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 sm:p-6">
+                <div className="text-center mb-5">
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-700 text-xs font-semibold mb-3">
+                    🧩 {t("challenge.title")}
+                  </span>
+                  <h2 className="text-xl sm:text-2xl font-bold text-slate-900 mb-2">
+                    {t("challenge.title")}
+                  </h2>
+                  <p className="text-sm sm:text-base text-slate-600 max-w-xl mx-auto">
+                    {t("challenge.subtitle")}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <button
+                    onClick={() => setChallengeSelected("left")}
+                    className="group relative rounded-xl overflow-hidden border-2 border-slate-200 hover:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-left"
+                  >
+                    <div className="aspect-[3/2] relative">
+                      <img
+                        src="/challenge/ai-mountain-thumb.jpg"
+                        alt={t("challenge.photoA")}
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
+                    </div>
+                    <div className="p-3 bg-slate-50 flex items-center justify-between">
+                      <span className="font-medium text-slate-700 text-sm">{t("challenge.photoA")}</span>
+                      <span className="text-xs text-indigo-600 font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                        {t("challenge.aiLabel")}?
+                      </span>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => setChallengeSelected("right")}
+                    className="group relative rounded-xl overflow-hidden border-2 border-slate-200 hover:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-left"
+                  >
+                    <div className="aspect-[3/2] relative">
+                      <img
+                        src="/challenge/real-mountain-thumb.jpg"
+                        alt={t("challenge.photoB")}
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
+                    </div>
+                    <div className="p-3 bg-slate-50 flex items-center justify-between">
+                      <span className="font-medium text-slate-700 text-sm">{t("challenge.photoB")}</span>
+                      <span className="text-xs text-indigo-600 font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                        {t("challenge.aiLabel")}?
+                      </span>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 sm:p-6 animate-in fade-in duration-300">
+                <div className="text-center mb-5">
+                  <h2 className="text-xl sm:text-2xl font-bold text-slate-900 mb-2">
+                    {challengeSelected === "left" ? t("challenge.correct") : t("challenge.wrong")}
+                  </h2>
+                  <p className="text-sm sm:text-base text-slate-600 max-w-xl mx-auto">
+                    {t("challenge.hint")}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
+                  <div className="relative rounded-xl overflow-hidden border-2 border-red-300">
+                    <div className="aspect-[3/2] relative">
+                      <img
+                        src="/challenge/ai-mountain-thumb.jpg"
+                        alt={t("challenge.photoA")}
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute top-3 left-3 px-2.5 py-1 rounded-md bg-red-600 text-white text-xs font-bold shadow-sm">
+                        {t("challenge.aiLabel")}
+                      </div>
+                    </div>
+                    <div className="p-3 bg-red-50 text-center text-sm font-medium text-red-700">
+                      {t("challenge.photoA")}
+                    </div>
+                  </div>
+
+                  <div className="relative rounded-xl overflow-hidden border-2 border-green-300">
+                    <div className="aspect-[3/2] relative">
+                      <img
+                        src="/challenge/real-mountain-thumb.jpg"
+                        alt={t("challenge.photoB")}
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute top-3 left-3 px-2.5 py-1 rounded-md bg-green-600 text-white text-xs font-bold shadow-sm">
+                        {t("challenge.realLabel")}
+                      </div>
+                    </div>
+                    <div className="p-3 bg-green-50 text-center text-sm font-medium text-green-700">
+                      {t("challenge.photoB")}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                  <button
+                    onClick={scrollToUpload}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 px-6 rounded-xl transition-colors min-h-[48px] flex items-center gap-2"
+                  >
+                    <span>🔍</span> {t("challenge.cta")}
+                  </button>
+                  <button
+                    onClick={() => setChallengeSelected(null)}
+                    className="text-slate-500 hover:text-slate-700 font-medium py-3 px-6 rounded-xl transition-colors min-h-[48px]"
+                  >
+                    {t("challenge.tryAgain")}
+                  </button>
+                </div>
+              </div>
+            )}
+          </section>
+        )}
+
         {/* Hero */}
         {!image && (
           <div className="text-center mb-6 sm:mb-8">
@@ -587,6 +718,7 @@ export default function Home() {
         {/* Upload Area */}
         {!image && (
           <div
+            id="upload-section"
             onDragOver={(e) => {
               e.preventDefault();
               setDragOver(true);
