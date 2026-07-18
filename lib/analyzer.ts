@@ -19,6 +19,7 @@
 
 import { detectWithHuggingFace, HFDetectionResult } from "./detectors/huggingface";
 import { analyzeExif, ExifResult, type SignalLean } from "./detectors/exif";
+import { detectWatermark, type WatermarkResult } from "./detectors/watermark";
 import { serverT, type ServerLocale } from "@/lib/i18n/server";
 
 export interface DetectionResult {
@@ -28,6 +29,7 @@ export interface DetectionResult {
   engines: {
     huggingface?: HFDetectionResult;
     exif?: ExifResult;
+    watermark?: WatermarkResult;
   };
   evidence: EvidenceItem[];
   /** Structured, human-readable signal breakdown (detailed report). */
@@ -174,6 +176,40 @@ export async function analyzeImage(
     });
   }
 
+  // --- Watermark OCR (best-effort, conditional) ---
+  // Retouching / beauty apps (轻颜, 美图, B612...) embed a brand watermark that
+  // proves the image is an EDITED REAL photo, not AI. We only spend the
+  // (relatively expensive) OCR pass when the visual model is ambiguous-to-
+  // suspicious; clearly-real or extremely-confident-AI cases skip it.
+  let watermark: WatermarkResult | null = null;
+  if (aiProb > 0.5 && aiProb < 0.95) {
+    try {
+      watermark = await detectWatermark(imageBuffer, locale, 8000);
+    } catch {
+      watermark = null;
+    }
+  }
+  if (watermark?.found && watermark.app) {
+    engines.watermark = watermark;
+    // Strong REAL signal: compress the AI probability more aggressively than a
+    // filename-only hint, because a visible brand watermark is definitive proof
+    // of a real-photo editing pipeline rather than generation.
+    aiProb = 0.5 + (aiProb - 0.5) * 0.4;
+    evidence.push({
+      source: t("evidence.source_watermark"),
+      type: "real",
+      label: t("evidence.watermark_found"),
+      detail: t("evidence.watermark_found_detail", { app: watermark.app }),
+    });
+    signals.push({
+      category: "format",
+      label: t("evidence.watermark_found"),
+      detail: t("evidence.watermark_found_detail", { app: watermark.app }),
+      lean: "real",
+      score: 20,
+    });
+  }
+
   const aiPercentRaw = Math.round(aiProb * 100);
 
   // --- Confidence calibration ---
@@ -210,8 +246,9 @@ export async function analyzeImage(
   // "likely AI" verdict is less reliable. We raise the threshold to be more
   // conservative — these cases often fall into "uncertain" and prompt the user
   // to consider the image as a retouched real photo rather than AI-generated.
+  const watermarkSignal = !!watermark?.found;
   const retouchingSignal =
-    (hasRetouchingSignal || hasBeautySoftwareSignal) && aiPercent < 95;
+    (hasRetouchingSignal || hasBeautySoftwareSignal || watermarkSignal) && aiPercent < 95;
   const aiThreshold = retouchingSignal ? 75 : 65;
   const realThreshold = 35;
   if (aiPercent >= aiThreshold) {

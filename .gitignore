@@ -46,3 +46,11 @@ gh_install/
 
 /lib/generated/prisma
 extension.crx
+
+# tesseract.js language data (downloaded at runtime from CDN; keep repo lean)
+/tessdata
+*.traineddata
+*.traineddata.gz
+scripts/tmp-*.mjs
+scripts/tmp-*.js
+scripts/tmp-*.py
