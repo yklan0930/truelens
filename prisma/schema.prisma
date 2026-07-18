@@ -119,3 +119,39 @@ model SharedResult {
   @@index([createdAt])
   @@map("shared_results")
 }
+
+/// Async video (AI / deepfake) detection jobs. The video bytes never pass
+/// through Vercel functions — the browser uploads directly to blob storage and
+/// the engine (Sightengine or mock) processes out-of-band, then calls our
+/// webhook. The frontend polls /api/detect-video/status.
+model VideoJob {
+  id        String   @id @default(cuid())
+  userId    String? // null = anonymous
+  blobUrl   String?  @db.Text // public URL the engine fetches from
+  fileName  String?
+  fileSize  Int?
+  status    String   @default("pending") // pending | processing | done | failed
+  engine    String   @default("mock") // mock | sightengine
+  result    Json? // VideoResult when done
+  error     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("video_jobs")
+}
+
+/// Daily video-detection usage per user (separate counter from images so the
+/// heavier video quota can be tuned independently).
+model VideoUsageRecord {
+  id        String   @id @default(cuid())
+  userId    String
+  date      DateTime @db.Date
+  count     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, date])
+  @@map("video_usage_records")
+}
