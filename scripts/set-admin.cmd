@@ -1,12 +1,5 @@
 @echo off
-REM ============================================================
-REM TrueLens - promote a registered email to admin (Windows cmd)
-REM Effect: users row -> isAdmin=true, plan=business (unlimited + full report)
-REM Prereq: tables exist (run db-push.cmd) + email logged in at least once
-REM          + .env.local has DATABASE_URL
-REM Usage:  scripts\set-admin.cmd admin@truelens.top
-REM ============================================================
-setlocal EnableDelayedExpansion
+setlocal
 cd /d "%~dp0.."
 
 if "%~1"=="" (
@@ -16,20 +9,22 @@ if "%~1"=="" (
 )
 
 set "EMAIL=%~1"
-REM SQL-escape single quotes (replace ' with '')
+REM SQL-escape single quotes inside the email by doubling them
 set "EMAIL_SQL=%EMAIL:'=''%"
 
 REM Load DATABASE_URL from .env.local (Prisma CLI only reads .env, not .env.local)
 set "DATABASE_URL="
-for /f "usebackq tokens=1,* delims==" %%A in (`findstr /b "DATABASE_URL" ".env.local" 2^>nul`) do set "DATABASE_URL=%%B"
+for /f "usebackq tokens=1,* delims==" %%A in ("%CD%\.env.local") do (
+  if "%%A"=="DATABASE_URL" set "DATABASE_URL=%%B"
+)
 
-if "!DATABASE_URL!"=="" (
+if "%DATABASE_URL%"=="" (
   echo [ERROR] DATABASE_URL not found in .env.local
   exit /b 1
 )
 
 echo Promoting email to admin: %EMAIL%
-echo   (isAdmin=true, plan=business -> unlimited detections + full report)
+echo   isAdmin=true, plan=business -> unlimited detections plus full report
 echo.
 
 set "SQLFILE=%TEMP%\truelens_set_admin.sql"
@@ -49,11 +44,11 @@ set "SQLFILE=%TEMP%\truelens_set_admin.sql"
 type "%SQLFILE%" | node_modules\.bin\prisma.cmd db execute --stdin --schema prisma/schema.prisma 2>&1
 if errorlevel 1 (
   echo.
-  echo [ERROR] Execution failed. Check: (1) ran db-push.cmd to build tables; (2) network to DB; (3) DATABASE_URL correct
+  echo [ERROR] Execution failed. Steps: run db-push.cmd first to build tables, check network to DB, verify DATABASE_URL.
   exit /b 1
 )
 
 echo.
-echo Done. If you see TL_ADMIN_RESULT: OK or the row is selected, it succeeded.
+echo Done. See TL_ADMIN_RESULT: OK or the selected row above means success.
 echo If NO_SUCH_USER, the email never logged in; log in once, then re-run this script.
 endlocal
