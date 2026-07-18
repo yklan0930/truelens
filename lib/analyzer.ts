@@ -159,7 +159,11 @@ export async function analyzeImage(
     // AI generations (smooth skin, sharpened eyes, homogenous tones). When such
     // indicators are present, we compress the AI probability toward 0.5 instead
     // of a flat subtraction, because the visual model alone is not reliable here.
-    const compression = hasBeautySoftwareSignal ? 0.45 : 0.6;
+    //
+    // Compression factor (lower = stronger pull toward "uncertain"):
+    //   0.30 — beauty app name in EXIF Software field (strongest real evidence)
+    //   0.38 — social-app filename only (weaker but still informative)
+    const compression = hasBeautySoftwareSignal ? 0.30 : 0.38;
     aiProb = 0.5 + (aiProb - 0.5) * compression;
     evidence.push({
       source: t("evidence.source_exif"),
@@ -184,17 +188,17 @@ export async function analyzeImage(
   let watermark: WatermarkResult | null = null;
   if (aiProb > 0.5 && aiProb < 0.95) {
     try {
-      watermark = await detectWatermark(imageBuffer, locale, 8000);
+      watermark = await detectWatermark(imageBuffer, hfToken, locale, 10000);
     } catch {
       watermark = null;
     }
   }
   if (watermark?.found && watermark.app) {
     engines.watermark = watermark;
-    // Strong REAL signal: compress the AI probability more aggressively than a
-    // filename-only hint, because a visible brand watermark is definitive proof
-    // of a real-photo editing pipeline rather than generation.
-    aiProb = 0.5 + (aiProb - 0.5) * 0.4;
+    // Strong REAL signal: a visible brand watermark is near-definitive proof
+    // that this is a real photo passed through an editing pipeline — NOT AI.
+    // Apply the strongest compression of all signals.
+    aiProb = 0.5 + (aiProb - 0.5) * 0.25;
     evidence.push({
       source: t("evidence.source_watermark"),
       type: "real",

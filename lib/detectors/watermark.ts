@@ -1,27 +1,26 @@
 /**
- * Watermark OCR Detector
+ * Watermark Detector (v2 — HF API + tesseract.js fallback)
  *
- * Many REAL photos that get falsely flagged as "AI" are actually retouched /
- * beautified real photos exported by apps like 轻颜, 美图秀秀, B612, Faceu, etc.
- * These apps embed a small brand watermark (usually bottom-left / bottom-center)
- * into the exported image. Detecting such a watermark is strong evidence that
- * the image is a REAL photo that was edited — NOT AI-generated.
+ * Many REAL photos falsely flagged as "AI" are retouched / beautified real photos
+ * from apps like 轻颜, 美图秀秀, B612, Faceu, etc.  These apps embed a brand
+ * watermark (usually bottom-left) into the exported image.
  *
- * We use tesseract.js (pure WASM, runs in the Node runtime) to OCR the image
- * and match against a curated list of beauty / photo-editing app brands.
+ * v2 architecture (fixes Vercel Serverless compatibility):
+ *   Strategy 1 — HuggingFace Inference API (TrOCR / OCR model):
+ *     Uses the same HF token & proxy infrastructure as our ViT detector.
+ *     Fast (~2-5s), reliable on Vercel, no WASM/CDN dependency.
  *
- * This detector is BEST-EFFORT:
- *   - It is wrapped in a hard timeout so it can never block the main analysis.
- *   - Any failure (missing traineddata, CDN blocked, worker error) returns null
- *     and the analyzer simply ignores it — the rest of the pipeline is unaffected.
- *   - If a local `tessdata/` directory exists next to the project root, it is
- *     used as the language-data source (self-contained deployment, e.g. Vercel);
- *     otherwise tesseract.js falls back to downloading from its CDN.
+ *   Strategy 2 — tesseract.js (local WASM, best-effort fallback):
+ *     Only runs when HF found nothing.  Needs local tessdata/ or CDN download.
+ *     Can time out or fail on Vercel — gracefully returns null.
+ *
+ * Both strategies feed into matchBrand() which checks against a curated list
+ * of beauty / photo-editing app brands.  Any match is strong evidence of an
+ * EDITED REAL photo, not AI-generated.
  */
 
 import fs from "fs";
 import path from "path";
-import Tesseract from "tesseract.js";
 import { type ServerLocale } from "@/lib/i18n/server";
 
 export interface WatermarkResult {
@@ -36,14 +35,12 @@ export interface WatermarkResult {
   position?: "bottom" | "top" | "other";
   /** Full OCR text (debug / transparency). */
   ocrText?: string;
+  /** Which strategy produced the result. */
+  source?: "hf" | "tesseract";
 }
 
-/**
- * Curated list of beauty / camera / photo-editing app brand names that embed
- * a watermark. Kept specific on purpose — social platforms (微信/抖音/小红书)
- * are intentionally excluded because they rarely watermark exported *photos*
- * and are already handled by filename heuristics.
- */
+// ── Brand list ──────────────────────────────────────────────────────
+
 const WATERMARK_BRANDS = [
   // Chinese beauty / camera / editing apps
   "轻颜相机",
@@ -91,7 +88,7 @@ const normalize = (s: string): string => s.replace(/\s+/g, "").toLowerCase();
 
 /**
  * Match OCR text against the known watermark brand list.
- * Returns the longest matching brand (specific brands win over generic ones).
+ * Returns the longest matching brand (specific wins over generic).
  */
 export function matchBrand(text: string): { app: string; key: string } | null {
   const norm = normalize(text);
@@ -104,10 +101,114 @@ export function matchBrand(text: string): { app: string; key: string } | null {
   return null;
 }
 
-/** Use a bundled tessdata/ directory only if the required language files are
- *  actually present (self-contained deployment). Otherwise return undefined so
- *  tesseract.js falls back to its default CDN (jsDelivr) at runtime.
+// ── Proxy helper (same pattern as huggingface.ts) ───────────────────
+
+let proxyConfigured = false;
+function ensureProxy() {
+  if (proxyConfigured) return;
+  const proxyUrl =
+    process.env.HTTPS_PROXY ||
+    process.env.HTTP_PROXY ||
+    process.env.https_proxy ||
+    process.env.http_proxy;
+  if (proxyUrl) {
+    try {
+      const { ProxyAgent, setGlobalDispatcher } = require("undici");
+      setGlobalDispatcher(new ProxyAgent(proxyUrl));
+    } catch {
+      // silent fail — production Vercel doesn't need proxy
+    }
+  }
+  proxyConfigured = true;
+}
+
+// ── Strategy 1: HuggingFace Inference API ───────────────────────────
+
+/** Known-working HF models for image-to-text (OCR). Tried in order. */
+const HF_OCR_MODELS = [
+  "microsoft/trocr-base-printed",        // Latin printed text (B612, Faceu, Foodie…)
+  "microsoft/trocr-base-handwritten",    // Handwritten style watermarks
+];
+
+/**
+ * Call HF Inference API with an OCR model to extract text from the image.
+ * Returns raw OCR text or null on failure.
  */
+async function ocrWithHF(
+  imageBuffer: Buffer,
+  token: string,
+  timeoutMs = 6000
+): Promise<string | null> {
+  ensureProxy();
+
+  for (const model of HF_OCR_MODELS) {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+      const url = `https://router.huggingface.co/hf-inference/models/${model}`;
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "image/jpeg",
+        },
+        body: new Uint8Array(imageBuffer),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timer);
+
+      if (!res.ok) {
+        // Model not supported / loading → skip to next model
+        console.warn(`[Watermark/HF] ${model} → ${res.status}`);
+        continue;
+      }
+
+      const data = await res.json();
+      // TrOCR returns: [{ generated_text: "…" }] or { generated_text: "…" }
+      const text =
+        Array.isArray(data)
+          ? data.map((d: Record<string, unknown>) => String(d.generated_text ?? "")).join(" ")
+          : String(data.generated_text ?? data.text ?? "");
+
+      if (text.trim()) return text.trim();
+    } catch (err) {
+      console.warn(`[Watermark/HF] ${model} error:`, err instanceof Error ? err.message : err);
+      // Continue to next model
+    }
+  }
+
+  return null;
+}
+
+// ── Strategy 2: tesseract.js fallback ──────────────────────────────
+
+async function ocrWithTesseract(
+  imageBuffer: Buffer,
+  _locale: ServerLocale,
+  timeoutMs = 8000
+): Promise<string | null> {
+  try {
+    const Tesseract = (await import("tesseract.js")).default;
+
+    const langPath = resolveLangPath();
+    const options: Record<string, unknown> = { logger: () => {} };
+    if (langPath) options.langPath = langPath;
+
+    const ocrTask = Tesseract.recognize(imageBuffer, "chi_sim+eng", options)
+      .then(({ data }) => data.text || "")
+      .catch(() => null);
+
+    const timeout = new Promise<null>((r) => setTimeout(() => r(null), timeoutMs));
+    const text = await Promise.race([ocrTask, timeout]);
+
+    return text?.trim() && text.length > 0 ? text : null;
+  } catch {
+    return null;
+  }
+}
+
 function resolveLangPath(): string | undefined {
   try {
     const p = path.join(process.cwd(), "tessdata");
@@ -116,91 +217,75 @@ function resolveLangPath(): string | undefined {
       const hasChi = fs.existsSync(path.join(p, "chi_sim.traineddata"));
       if (hasEng && hasChi) return p;
     }
-  } catch {
-    /* ignore */
-  }
+  } catch { /* ignore */ }
   return undefined;
 }
 
-type BBox = { x0: number; y0: number; x1: number; y1: number } | undefined;
-
-function inferPosition(bbox: BBox, maxY: number): "bottom" | "top" | "other" {
-  if (!bbox || !maxY) return "other";
-  const y = bbox.y1;
-  if (y > maxY * 0.6) return "bottom";
-  if (y < maxY * 0.3) return "top";
-  return "other";
-}
+// ── Public API ──────────────────────────────────────────────────────
 
 export async function detectWatermark(
   imageBuffer: Buffer,
-  _locale: ServerLocale = "zh",
-  timeoutMs = 8000
+  hfToken: string,
+  locale: ServerLocale = "zh",
+  timeoutMs = 12000
 ): Promise<WatermarkResult | null> {
-  const langPath = resolveLangPath();
-  const options: Record<string, unknown> = { logger: () => {} };
-  if (langPath) options.langPath = langPath;
+  const start = Date.now();
 
-  const ocrTask = Tesseract.recognize(imageBuffer, "chi_sim+eng", options)
-    .then(({ data }) => data)
-    .catch(() => null);
+  // --- Strategy 1: HF OCR (fast, reliable on Vercel) ---
+  let hfText: string | null = null;
+  try {
+    hfText = await ocrWithHF(imageBuffer, hfToken, Math.min(6000, timeoutMs));
+  } catch { /* ignore */ }
 
-  const timeout = new Promise<null>((resolve) =>
-    setTimeout(() => resolve(null), timeoutMs)
-  );
-
-  const data = await Promise.race([ocrTask, timeout]);
-  if (!data) return null;
-
-  const words = (data.words || []) as Array<{
-    text: string;
-    confidence: number;
-    bbox?: BBox;
-  }>;
-
-  const maxY = words.reduce((m, w) => Math.max(m, w.bbox?.y1 ?? 0), 0);
-
-  // Word-level match (preferred): keeps confidence + position.
-  let best: {
-    app: string;
-    key: string;
-    confidence: number;
-    position: "bottom" | "top" | "other";
-  } | null = null;
-
-  for (const w of words) {
-    if ((w.confidence ?? 0) < 50) continue;
-    const m = matchBrand(w.text);
-    if (!m) continue;
-    const position = inferPosition(w.bbox, maxY);
-    const cand = { app: m.app, key: m.key, confidence: w.confidence ?? 0, position };
-    if (!best || cand.confidence > best.confidence) best = cand;
+  if (hfText) {
+    console.log(`[Watermark] HF OCR text (${Date.now() - start}ms):`, hfText.slice(0, 200));
+    const m = matchBrand(hfText);
+    if (m) {
+      return {
+        found: true,
+        app: m.app,
+        appKey: m.key,
+        confidence: 80, // HF OCR is generally reliable
+        ocrText: hfText,
+        source: "hf",
+      };
+    }
   }
 
-  if (best) {
+  // --- Strategy 2: tesseract.js (fallback, especially for Chinese) ---
+  // Only proceed if we have time budget left
+  const elapsed = Date.now() - start;
+  const remaining = Math.max(3000, timeoutMs - elapsed);
+
+  let tessText: string | null = null;
+  try {
+    tessText = await ocrWithTesseract(imageBuffer, locale, remaining);
+  } catch { /* ignore */ }
+
+  if (tessText) {
+    console.log(`[Watermark] Tesseract text (${Date.now() - start}ms):`, tessText.slice(0, 200));
+    const m = matchBrand(tessText);
+    if (m) {
+      return {
+        found: true,
+        app: m.app,
+        appKey: m.key,
+        confidence: 65, // Tesseract confidence varies more
+        ocrText: tessText,
+        source: "tesseract",
+      };
+    }
+  }
+
+  // No brand matched — return negative result for debugging
+  if (hfText || tessText) {
     return {
-      found: true,
-      app: best.app,
-      appKey: best.key,
-      confidence: Math.round(best.confidence),
-      position: best.position,
-      ocrText: data.text,
+      found: false,
+      confidence: 0,
+      ocrText: hfText || tessText || undefined,
     };
   }
 
-  // Fallback: match across the concatenation of all words (catches tokens that
-  // the OCR engine split across multiple "words", e.g. "轻 颜").
-  const combined = normalize(words.map((w) => w.text).join(""));
-  const combinedMatch = matchBrand(combined);
-  if (combinedMatch) {
-    return {
-      found: true,
-      app: combinedMatch.app,
-      appKey: combinedMatch.key,
-      confidence: 60,
-      ocrText: data.text,
-    };
-  }
-
-  return { found: false, confidence: 0, ocrText: data.text };
+  // Both strategies failed silently
+  return null;
 }
