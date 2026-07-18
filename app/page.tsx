@@ -215,7 +215,8 @@ function clearHistory() {
 async function generateShareCard(
   result: DetectionResult,
   t: (key: string, params?: Record<string, string | number>) => string,
-  locale: Locale
+  locale: Locale,
+  showCta = false
 ): Promise<Blob> {
   const canvas = document.createElement("canvas");
   canvas.width = 600;
@@ -257,25 +258,60 @@ async function generateShareCard(
 
   ctx.fillStyle = "rgba(255,255,255,0.7)";
   ctx.font = "16px system-ui, sans-serif";
-  ctx.fillText(t("share.cardAiProb"), 30, 230);
+  ctx.fillText(t("share.cardAiProb"), 30, 232);
 
-  // Evidence summary
-  ctx.fillStyle = "rgba(255,255,255,0.6)";
+  // Evidence summary OR anonymous CTA
   ctx.font = "13px system-ui, sans-serif";
-  let y = 275;
-  result.evidence.slice(0, 2).forEach((ev) => {
-    const icon = ev.type === "real" ? "✅" : ev.type === "ai" ? "⚠️" : "📋";
-    ctx.fillText(`${icon} ${ev.label}`, 30, y);
-    y += 24;
-  });
+  if (showCta) {
+    ctx.fillStyle = "rgba(255,255,255,0.9)";
+    ctx.fillText(t("share.cardCta"), 30, 286);
+  } else {
+    ctx.fillStyle = "rgba(255,255,255,0.6)";
+    let y = 280;
+    result.evidence.slice(0, 2).forEach((ev) => {
+      const icon = ev.type === "real" ? "✅" : ev.type === "ai" ? "⚠️" : "📋";
+      ctx.fillText(`${icon} ${ev.label}`, 30, y);
+      y += 24;
+    });
+  }
 
   // Confidence
-  const confY = y > 305 ? y + 8 : 305;
+  ctx.fillStyle = "rgba(255,255,255,0.6)";
+  ctx.font = "13px system-ui, sans-serif";
   ctx.fillText(
     t("share.cardConfidence", { confidence: result.confidence, ms: result.processingTimeMs }),
     30,
-    confY
+    322
   );
+
+  // QR code (scannable → truelens.top) — optional, degrades gracefully
+  try {
+    const { toDataURL } = await import("qrcode");
+    const qrDataUrl = await toDataURL("https://truelens.top", {
+      width: 200,
+      margin: 1,
+      color: { dark: "#0f172a", light: "#ffffff" },
+    });
+    const qrImg = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = qrDataUrl;
+    });
+    const qrSize = 104;
+    const qrX = 600 - 30 - qrSize;
+    const qrY = 150;
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath();
+    ctx.roundRect(qrX - 6, qrY - 6, qrSize + 12, qrSize + 12, 10);
+    ctx.fill();
+    ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
+    ctx.font = "12px system-ui, sans-serif";
+    ctx.fillText(t("share.cardScan"), qrX, qrY + qrSize + 18);
+  } catch {
+    // QR is optional — card still works without it
+  }
 
   // Bottom bar
   ctx.fillStyle = "rgba(0,0,0,0.3)";
@@ -581,7 +617,7 @@ export default function Home() {
     setShareLoading(true);
 
     try {
-      const blob = await generateShareCard(result, t, locale);
+      const blob = await generateShareCard(result, t, locale, !showDetailed);
       const file = new File([blob], "truelens-result.png", { type: "image/png" });
 
       const verdictText =
@@ -1268,7 +1304,11 @@ export default function Home() {
                           result.verdict === "likely_ai"
                             ? t("result.verdict_ai")
                             : t("result.verdict_real");
-                        const text = `🔍 TrueLens: AI ${result.aiProbability}% — ${verdictText}\n🕵 ${t("share.copySuccess")} https://truelens.top`;
+                        const text = t("share.copyTemplate", {
+                          aiProbability: result.aiProbability,
+                          verdict: verdictText,
+                          confidence: result.confidence,
+                        });
                         await navigator.clipboard.writeText(text);
                         setCopied(true);
                         setTimeout(() => setCopied(false), 3000);

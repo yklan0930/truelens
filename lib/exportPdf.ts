@@ -1,6 +1,12 @@
 // Client-side PDF report export for TrueLens (Pro / Business / Admin only).
-// Uses jsPDF (dynamically imported so it never enters the SSR bundle).
-// All text is localized via the `t` function passed from the component.
+//
+// NOTE on Chinese (CJK) text:
+// jsPDF's built-in fonts (helvetica/times/courier) only encode Latin/ASCII.
+// Drawing Chinese strings with them produces garbled output. Embedding a CJK
+// TTF into jsPDF is impractical (the font is ~10MB and jsPDF does not subset).
+// Instead we build a self-contained report node, let the browser render it
+// with its native CJK fonts, rasterize it with html2canvas, then place the
+// resulting image across A4 pages. This guarantees correct Chinese display.
 
 export interface ExportPdfInput {
   aiProbability: number;
@@ -17,19 +23,24 @@ export interface ExportPdfInput {
   t: (key: string, params?: Record<string, string | number>) => string;
 }
 
-type RGB = [number, number, number];
-
-const C: Record<string, RGB> = {
-  indigo: [79, 70, 229],
-  white: [255, 255, 255],
-  red: [220, 38, 38],
-  green: [22, 163, 74],
-  amber: [180, 83, 9],
-  amberText: [146, 64, 14],
-  amberBg: [254, 243, 199],
-  slate: [71, 85, 105],
-  slateLight: [148, 163, 184],
+// Inline (html2canvas-safe) colors — hex only, no oklch/color-mix.
+const C = {
+  indigo: "#4F46E5",
+  white: "#FFFFFF",
+  red: "#DC2626",
+  green: "#16A34A",
+  amber: "#B45309",
+  amberBg: "#FEF3C7",
+  amberText: "#92400E",
+  slate: "#475569",
+  slateSoft: "#64748B",
+  slateLight: "#94A3B8",
+  slate900: "#0F172A",
+  border: "#E2E8F0",
 };
+
+const FONT_STACK =
+  '-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans CJK SC","Source Han Sans SC",sans-serif';
 
 function verdictKey(v: string): string {
   return v === "likely_ai"
@@ -39,118 +50,94 @@ function verdictKey(v: string): string {
       : "verdict_uncertain";
 }
 
-function getImageRatio(dataUrl: string): Promise<number> {
+function typeColor(type: string): string {
+  if (type === "real") return C.green;
+  if (type === "ai") return C.red;
+  return C.amber;
+}
+
+function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    img.onload = () =>
-      resolve(img.naturalWidth / Math.max(1, img.naturalHeight));
+    img.onload = () => resolve(img);
     img.onerror = reject;
-    img.src = dataUrl;
+    img.src = src;
   });
 }
 
-function imageFormat(dataUrl: string): "PNG" | "JPEG" | "WEBP" {
-  if (dataUrl.startsWith("data:image/png")) return "PNG";
-  if (dataUrl.startsWith("data:image/webp")) return "WEBP";
-  return "JPEG";
-}
-
-export async function exportResultPdf(input: ExportPdfInput): Promise<void> {
+// Build a detached, fully-styled report node (off-screen) for rasterization.
+function buildReportNode(input: ExportPdfInput): HTMLElement {
   const { aiProbability, verdict, confidence, evidence, signals, screenRephoto, processingTimeMs, fileName, fileSize, imageDataUrl, locale, t } = input;
-  const { jsPDF } = await import("jspdf");
 
-  const doc = new jsPDF({ unit: "pt", format: "a4" });
-  const PAGE_W = 595.28;
-  const MARGIN = 40;
-  const CONTENT_W = PAGE_W - MARGIN * 2;
-  const PAGE_BOTTOM = 842 - MARGIN;
-  let y = 0;
+  const wrap = document.createElement("div");
+  wrap.style.cssText = `position:fixed;left:-10000px;top:0;z-index:-1;width:560px;background:${C.white};color:${C.slate900};font-family:${FONT_STACK};box-sizing:border-box;`;
 
   // --- Header band ---
-  doc.setFillColor(...C.indigo);
-  doc.rect(0, 0, PAGE_W, 70, "F");
-  doc.setTextColor(...C.white);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(20);
-  doc.text("TrueLens", MARGIN, 34);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(11);
-  doc.text(t("pdf.title"), MARGIN, 52);
-  y = 92;
+  const header = document.createElement("div");
+  header.style.cssText = `background:${C.indigo};padding:18px 24px;color:${C.white};`;
+  const brand = document.createElement("div");
+  brand.style.cssText = "font-size:20px;font-weight:700;line-height:1.2;";
+  brand.textContent = "TrueLens";
+  const sub = document.createElement("div");
+  sub.style.cssText = "font-size:12px;opacity:0.85;margin-top:2px;";
+  sub.textContent = t("pdf.title");
+  header.append(brand, sub);
 
-  // --- Image preview ---
+  // --- Body ---
+  const body = document.createElement("div");
+  body.style.cssText = "padding:24px;";
+
+  // Image preview
   if (imageDataUrl) {
-    try {
-      const ratio = await getImageRatio(imageDataUrl);
-      const maxW = CONTENT_W;
-      const maxH = 280;
-      let w = maxW;
-      let h = w / ratio;
-      if (h > maxH) {
-        h = maxH;
-        w = h * ratio;
-      }
-      const x = (PAGE_W - w) / 2;
-      doc.addImage(imageDataUrl, imageFormat(imageDataUrl), x, y, w, h);
-      y += h + 18;
-    } catch {
-      // image embed failed — continue without it
-    }
+    const img = document.createElement("img");
+    img.src = imageDataUrl;
+    img.style.cssText =
+      "display:block;max-width:100%;max-height:300px;margin:0 auto 18px;border-radius:12px;";
+    body.appendChild(img);
   }
 
-  // --- Verdict box ---
+  // Verdict box
   const vColor = verdict === "likely_ai" ? C.red : verdict === "likely_real" ? C.green : C.amber;
-  const verdictLabel = t(`result.${verdictKey(verdict)}`);
-  const boxH = 66;
-  doc.setDrawColor(...vColor);
-  doc.setLineWidth(1.5);
-  doc.setFillColor(...C.white);
-  doc.roundedRect(MARGIN, y, CONTENT_W, boxH, 8, 8, "FD");
-  doc.setTextColor(...vColor);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(15);
-  doc.text(verdictLabel, MARGIN + 16, y + 28);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
-  doc.setTextColor(...C.slate);
-  doc.text(t("result.confidence", { value: confidence }), MARGIN + 16, y + 48);
-  // AI probability (right aligned)
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(26);
-  doc.setTextColor(...vColor);
-  const probText = `${aiProbability}%`;
-  doc.text(probText, PAGE_W - MARGIN - doc.getTextWidth(probText), y + 32);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-  doc.setTextColor(...C.slateLight);
-  const aiLabel = t("result.aiProbability");
-  doc.text(aiLabel, PAGE_W - MARGIN - doc.getTextWidth(aiLabel), y + 48);
-  y += boxH + 18;
+  const verdictBox = document.createElement("div");
+  verdictBox.style.cssText = `border:1.5px solid ${vColor};border-radius:10px;padding:14px 16px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;`;
+  const vLeft = document.createElement("div");
+  const vLabel = document.createElement("div");
+  vLabel.style.cssText = `color:${vColor};font-weight:700;font-size:15px;`;
+  vLabel.textContent = t(`result.${verdictKey(verdict)}`);
+  const vConf = document.createElement("div");
+  vConf.style.cssText = `color:${C.slate};font-size:11px;margin-top:4px;`;
+  vConf.textContent = t("result.confidence", { value: confidence });
+  vLeft.append(vLabel, vConf);
+  const vRight = document.createElement("div");
+  vRight.style.cssText = `color:${vColor};font-weight:700;font-size:26px;text-align:right;`;
+  vRight.textContent = `${aiProbability}%`;
+  const vRightSub = document.createElement("div");
+  vRightSub.style.cssText = `color:${C.slateLight};font-size:9px;text-align:right;`;
+  vRightSub.textContent = t("result.aiProbability");
+  const vRightWrap = document.createElement("div");
+  vRightWrap.append(vRight, vRightSub);
+  verdictBox.append(vLeft, vRightWrap);
+  body.appendChild(verdictBox);
 
-  // --- Screen re-photo advisory (if flagged) ---
+  // Screen re-photo advisory
   if (screenRephoto) {
-    doc.setFillColor(...C.amberBg);
-    doc.setDrawColor(...C.amber);
-    doc.setLineWidth(1);
-    doc.roundedRect(MARGIN, y, CONTENT_W, 46, 6, 6, "FD");
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
-    doc.setTextColor(...C.amber);
-    doc.text("⚠ " + t("evidence.screen_detected"), MARGIN + 12, y + 18);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
-    doc.setTextColor(...C.amberText);
-    const lines = doc.splitTextToSize(t("result.screenTip"), CONTENT_W - 24);
-    doc.text(lines, MARGIN + 12, y + 32);
-    y += 46 + 14;
+    const box = document.createElement("div");
+    box.style.cssText = `background:${C.amberBg};border:1px solid ${C.amber};border-radius:8px;padding:10px 12px;margin-bottom:16px;`;
+    const title = document.createElement("div");
+    title.style.cssText = `color:${C.amber};font-weight:700;font-size:11px;`;
+    title.textContent = "⚠ " + t("evidence.screen_detected");
+    const detail = document.createElement("div");
+    detail.style.cssText = `color:${C.amberText};font-size:9px;margin-top:4px;line-height:1.4;`;
+    detail.textContent = t("result.screenTip");
+    box.append(title, detail);
+    body.appendChild(box);
   }
 
-  // --- Evidence / Professional report ---
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(13);
-  doc.setTextColor(...C.slate);
-  doc.text(t("result.evidenceTitle"), MARGIN, y);
-  y += 14;
+  // Evidence / professional report
+  const evTitle = document.createElement("div");
+  evTitle.style.cssText = `color:${C.slate};font-weight:700;font-size:13px;margin-bottom:10px;`;
+  evTitle.textContent = t("result.evidenceTitle");
+  body.appendChild(evTitle);
 
   const items =
     signals && signals.length > 0
@@ -168,59 +155,95 @@ export async function exportResultPdf(input: ExportPdfInput): Promise<void> {
         }));
 
   for (const item of items) {
-    const tColor = item.type === "real" ? C.green : item.type === "ai" ? C.red : C.amber;
-    if (y > PAGE_BOTTOM - 60) {
-      doc.addPage();
-      y = MARGIN;
-    }
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
-    doc.setTextColor(...C.slate);
-    const labelLines = doc.splitTextToSize(item.label, CONTENT_W - 90);
-    doc.text(labelLines, MARGIN, y);
+    const col = typeColor(item.type);
+    const row = document.createElement("div");
+    row.style.cssText = `border:1px solid ${C.border};border-left:3px solid ${col};border-radius:8px;padding:10px 12px;margin-bottom:10px;`;
+    const head = document.createElement("div");
+    head.style.cssText = "display:flex;align-items:center;justify-content:space-between;";
+    const label = document.createElement("span");
+    label.style.cssText = `font-weight:600;font-size:11px;color:${C.slate900};`;
+    label.textContent = item.label;
+    head.appendChild(label);
     if (item.extra) {
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(8);
-      doc.setTextColor(...C.slateLight);
-      doc.text(item.extra, PAGE_W - MARGIN - doc.getTextWidth(item.extra), y);
+      const extra = document.createElement("span");
+      extra.style.cssText = `font-size:9px;color:${C.slateLight};`;
+      extra.textContent = item.extra;
+      head.appendChild(extra);
     }
-    y += labelLines.length * 12;
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    doc.setTextColor(...C.slate);
-    const detailLines = doc.splitTextToSize(item.detail, CONTENT_W - 16);
-    doc.text(detailLines, MARGIN + 4, y);
-    y += detailLines.length * 11 + 12;
+    const detail = document.createElement("div");
+    detail.style.cssText = `font-size:9px;color:${C.slate};margin-top:4px;line-height:1.4;`;
+    detail.textContent = item.detail;
+    row.append(head, detail);
+    body.appendChild(row);
   }
 
-  // --- Footer: file info, timestamp, disclaimer ---
-  if (y > PAGE_BOTTOM - 70) {
-    doc.addPage();
-    y = MARGIN;
-  }
-  doc.setDrawColor(...C.slateLight);
-  doc.setLineWidth(0.5);
-  doc.line(MARGIN, y, PAGE_W - MARGIN, y);
-  y += 14;
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8);
-  doc.setTextColor(...C.slateLight);
-  const discLines = doc.splitTextToSize(t("result.disclaimer"), CONTENT_W);
-  doc.text(discLines, MARGIN, y);
-  y += discLines.length * 10 + 4;
-  doc.text(
-    `${t("pdf.analyzed")}: ${fileName}  ·  ${t("result.fileSize", { size: Math.round(fileSize / 1024) })}  ·  ${t("result.processingTime", { ms: processingTimeMs })}`,
-    MARGIN,
-    y
-  );
-  y += 12;
-  doc.text(
-    `${t("pdf.generatedAt")}: ${new Date().toLocaleString(locale === "zh" ? "zh-CN" : "en-US")}  ·  truelens.top`,
-    MARGIN,
-    y
-  );
+  // Footer
+  const rule = document.createElement("div");
+  rule.style.cssText = `border-top:1px solid ${C.slateLight};margin:14px 0 10px;`;
+  body.appendChild(rule);
+  const disc = document.createElement("div");
+  disc.style.cssText = `font-size:8px;color:${C.slateLight};line-height:1.5;`;
+  disc.textContent = t("result.disclaimer");
+  const meta = document.createElement("div");
+  meta.style.cssText = `font-size:8px;color:${C.slateLight};margin-top:6px;line-height:1.5;`;
+  meta.textContent = `${t("pdf.analyzed")}: ${fileName}  ·  ${t("result.fileSize", { size: Math.round(fileSize / 1024) })}  ·  ${t("result.processingTime", { ms: processingTimeMs })}`;
+  const stamp = document.createElement("div");
+  stamp.style.cssText = `font-size:8px;color:${C.slateLight};margin-top:3px;`;
+  stamp.textContent = `${t("pdf.generatedAt")}: ${new Date().toLocaleString(locale === "zh" ? "zh-CN" : "en-US")}  ·  truelens.top`;
+  body.append(disc, meta, stamp);
 
-  // --- Save ---
-  const safeName = fileName.replace(/[^\w.\-]+/g, "_").replace(/_+/g, "_");
-  doc.save(`truelens_${safeName}.pdf`);
+  wrap.append(header, body);
+  return wrap;
+}
+
+export async function exportResultPdf(input: ExportPdfInput): Promise<void> {
+  const html2canvas = (await import("html2canvas")).default;
+  const { jsPDF } = await import("jspdf");
+
+  // Preload the image so html2canvas captures it reliably.
+  if (input.imageDataUrl) {
+    try {
+      await loadImage(input.imageDataUrl);
+    } catch {
+      // continue without image if it fails to load
+    }
+  }
+
+  const node = buildReportNode(input);
+  document.body.appendChild(node);
+
+  try {
+    const canvas = await html2canvas(node, {
+      scale: 2,
+      backgroundColor: C.white,
+      useCORS: true,
+      logging: false,
+      windowWidth: 560,
+    });
+
+    const doc = new jsPDF({ unit: "pt", format: "a4" });
+    const PAGE_W = 595.28;
+    const PAGE_H = 841.89;
+    const MARGIN = 24;
+    const PRINT_H = PAGE_H - MARGIN * 2;
+    const imgW = PAGE_W - MARGIN * 2;
+    const imgH = (canvas.height * imgW) / canvas.width;
+    const imgData = canvas.toDataURL("image/jpeg", 0.95);
+
+    let heightLeft = imgH;
+    let position = MARGIN;
+    doc.addImage(imgData, "JPEG", MARGIN, position, imgW, imgH);
+    heightLeft -= PRINT_H;
+    while (heightLeft > 0) {
+      const offset = heightLeft - imgH; // <= 0
+      doc.addPage();
+      doc.addImage(imgData, "JPEG", MARGIN, MARGIN + offset, imgW, imgH);
+      heightLeft -= PRINT_H;
+    }
+
+    const safeName = input.fileName.replace(/[^\w.\-]+/g, "_").replace(/_+/g, "_");
+    doc.save(`truelens_${safeName}.pdf`);
+  } finally {
+    document.body.removeChild(node);
+  }
 }
