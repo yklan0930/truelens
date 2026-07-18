@@ -68,8 +68,8 @@ fi
 echo "✅ 检测到 DATABASE_URL，开始同步数据库结构 ..."
 
 # 3. 同步 schema → 数据库（建表 / 加列）
-#    --skip-generate 避免重复生成，第 4 步单独生成更清晰
-./node_modules/.bin/prisma db push --skip-generate
+#    注意：当前 Prisma 版本的 db push 不接受 --skip-generate，去掉该选项
+./node_modules/.bin/prisma db push
 
 # 4. 重新生成 Prisma 客户端（与 Vercel 部署的 postinstall 保持一致）
 ./node_modules/.bin/prisma generate

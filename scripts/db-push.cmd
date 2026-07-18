@@ -38,7 +38,7 @@ if not exist "node_modules\.bin\prisma.cmd" (
   call npm install
 )
 
-call node_modules\.bin\prisma.cmd db push --skip-generate
+call node_modules\.bin\prisma.cmd db push
 if errorlevel 1 (
   echo ERROR: prisma db push failed. Check DATABASE_URL is correct and network.
   exit /b 1
