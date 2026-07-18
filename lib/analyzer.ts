@@ -22,6 +22,7 @@ import { analyzeExif, ExifResult, type SignalLean } from "./detectors/exif";
 import { detectWatermark, type WatermarkResult } from "./detectors/watermark";
 import { analyzeFaceSkin, type FaceSkinResult } from "./detectors/skin";
 import { analyzeTexture, type TextureResult } from "./detectors/texture";
+import { analyzeScreen, type ScreenResult } from "./detectors/screen";
 import { serverT, type ServerLocale } from "@/lib/i18n/server";
 
 export interface DetectionResult {
@@ -34,6 +35,7 @@ export interface DetectionResult {
     watermark?: WatermarkResult;
     face?: FaceSkinResult;
     texture?: TextureResult;
+    screen?: ScreenResult;
   };
   evidence: EvidenceItem[];
   /** Structured, human-readable signal breakdown (detailed report). */
@@ -305,6 +307,38 @@ export async function analyzeImage(
     });
   }
 
+  // --- Screen re-photography (best-effort, ANNOTATION ONLY) ---
+  // A phone photo OF a screen (a screenshot / slide / webpage re-photographed)
+  // is a genuine capture, but its moiré / sub-pixel-grid fingerprints make the
+  // vision model mis-flag it as AI. We deliberately do NOT soften the AI score
+  // here — doing so would let real AI images slip through. Instead we only
+  // ANNOTATE the result as "likely unreliable" and lower confidence below, so
+  // the user knows to judge with context.
+  let screen: ScreenResult | null = null;
+  if (aiProb > 0.5) {
+    try {
+      screen = await analyzeScreen(imageBuffer);
+    } catch {
+      screen = null;
+    }
+  }
+  if (screen?.isScreenCapture) {
+    engines.screen = screen;
+    evidence.push({
+      source: t("evidence.source_screen"),
+      type: "neutral",
+      label: t("evidence.screen_detected"),
+      detail: t("evidence.screen_detected_detail"),
+    });
+    signals.push({
+      category: "format",
+      label: t("evidence.screen_detected"),
+      detail: t("evidence.screen_detected_detail"),
+      lean: "neutral",
+      score: 50,
+    });
+  }
+
   const aiPercentRaw = Math.round(aiProb * 100);
 
   // --- Confidence calibration ---
@@ -332,6 +366,12 @@ export async function analyzeImage(
     } else if (!borderline) {
       calibrationNote = t("evidence.calib_hf_only");
     }
+  }
+
+  // A screen re-photo that the model flags as AI is a known false-positive
+  // class; lower confidence so the verdict reads as "unreliable, check context".
+  if (screen?.isScreenCapture && aiPercentRaw >= 60) {
+    confidence = Math.min(confidence, 60);
   }
 
   // --- Verdict ---
