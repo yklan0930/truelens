@@ -39,11 +39,18 @@ export interface ScreenResult {
   isScreenCapture: boolean;
 }
 
-const MAX_DIM = 200; // downscale for projection / gradient analysis
+// Analyse near-native resolution. A phone photo of a screen carries moiré /
+// sub-pixel-grid periods of only ~2-5px in the ORIGINAL image. Downscaling to
+// a small size (e.g. 200px) averages those fine periods away, so the detector
+// can NEVER see them — this was a hard bug (periodScore ~0 for everything).
+// At ~native resolution the fine periodicity survives and is detectable, while
+// JPEG 8x8 blocks still land near lag 8 (correctly excluded below) and large
+// real-world periods (brick/blinds, lag > 12) stay outside the gate.
+const MAX_DIM = 2200; // near-native — fine moiré must survive the downscale
 const MIN_LAG = 2;
 const MAX_LAG = 12; // FINE periods only (screen sub-pixel / moiré), not brick/blinds
-const PERIOD_GATE = 0.55; // primary gate — strong fine periodicity required
-const SCREEN_GATE = 0.4; // combined-score gate
+const PERIOD_GATE = 0.45; // primary gate — strong fine periodicity required
+const SCREEN_GATE = 0.35; // combined-score gate
 
 function clamp01(v: number): number {
   return v < 0 ? 0 : v > 1 ? 1 : v;
