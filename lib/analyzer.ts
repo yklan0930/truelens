@@ -21,6 +21,7 @@ import { detectWithHuggingFace, HFDetectionResult } from "./detectors/huggingfac
 import { analyzeExif, ExifResult, type SignalLean } from "./detectors/exif";
 import { detectWatermark, type WatermarkResult } from "./detectors/watermark";
 import { analyzeFaceSkin, type FaceSkinResult } from "./detectors/skin";
+import { analyzeTexture, type TextureResult } from "./detectors/texture";
 import { serverT, type ServerLocale } from "@/lib/i18n/server";
 
 export interface DetectionResult {
@@ -32,6 +33,7 @@ export interface DetectionResult {
     exif?: ExifResult;
     watermark?: WatermarkResult;
     face?: FaceSkinResult;
+    texture?: TextureResult;
   };
   evidence: EvidenceItem[];
   /** Structured, human-readable signal breakdown (detailed report). */
@@ -263,6 +265,46 @@ export async function analyzeImage(
     });
   }
 
+  // --- Natural-photo texture / noise fingerprint (best-effort, non-portrait) ---
+  // Real camera/phone photos carry sensor-noise + JPEG fingerprints that
+  // diffusion-AI images generally lack. This catches retouched / HDR /
+  // colour-graded NON-portrait real photos that have no face, watermark, or
+  // EXIF cue. Only nudges borderline cases; a confident AI verdict is never
+  // softened, and it requires genuine sensor-noise heteroscedasticity first.
+  let texture: TextureResult | null = null;
+  if (!face?.signal && aiProb > 0.5 && aiProb < 0.95) {
+    try {
+      texture = await analyzeTexture(imageBuffer);
+    } catch {
+      texture = null;
+    }
+  }
+  if (texture?.signal === "real") {
+    engines.texture = texture;
+    // Gentle compression: this is a softer real signal than a watermark, so we
+    // only pull borderline scores toward "uncertain" rather than slashing them.
+    aiProb = 0.5 + (aiProb - 0.5) * 0.7;
+    evidence.push({
+      source: t("evidence.source_texture"),
+      type: "real",
+      label: t("evidence.texture_natural"),
+      detail: t("evidence.texture_natural_detail", {
+        noise: (texture.noiseLevel * 10).toFixed(1),
+        blocking: Math.round(texture.jpegBlocking * 100),
+      }),
+    });
+    signals.push({
+      category: "format",
+      label: t("evidence.texture_natural"),
+      detail: t("evidence.texture_natural_detail", {
+        noise: (texture.noiseLevel * 10).toFixed(1),
+        blocking: Math.round(texture.jpegBlocking * 100),
+      }),
+      lean: "real",
+      score: texture.score,
+    });
+  }
+
   const aiPercentRaw = Math.round(aiProb * 100);
 
   // --- Confidence calibration ---
@@ -302,15 +344,18 @@ export async function analyzeImage(
   const watermarkSignal = !!watermark?.found;
   const faceDetected = !!face?.signal;
   const faceBeautified = face?.signal === "real_retouched";
+  const textureNatural = texture?.signal === "real";
   const retouchingSignal =
     (hasRetouchingSignal ||
       hasBeautySoftwareSignal ||
       watermarkSignal ||
-      faceBeautified) &&
+      faceBeautified ||
+      textureNatural) &&
     aiPercent < 95;
-  // A detected portrait makes the "likely AI" verdict less reliable, so we raise
-  // the bar to 75 — these cases more often fall into "uncertain".
-  const aiThreshold = retouchingSignal || faceDetected ? 75 : 65;
+  // A detected portrait or natural-photo fingerprint makes the "likely AI"
+  // verdict less reliable, so we raise the bar to 75 — these cases more often
+  // fall into "uncertain".
+  const aiThreshold = retouchingSignal || faceDetected || textureNatural ? 75 : 65;
   const realThreshold = 35;
   if (aiPercent >= aiThreshold) {
     verdict = "likely_ai";
