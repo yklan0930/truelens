@@ -1,18 +1,17 @@
 @echo off
-REM ─────────────────────────────────────────────────────────────
-REM TrueLens — 一键数据库迁移脚本 (Windows cmd 版)
-REM 作用：把 Prisma schema 同步到数据库（建表 + 加 isAdmin/plan），并重新生成客户端
-REM 用法：在 cmd 里进入项目根目录，执行  scripts\db-push.cmd
-REM 前置：.env.local 中已配置 DATABASE_URL（来自 Prisma Postgres / Vercel Postgres）
-REM ─────────────────────────────────────────────────────────────
+REM ============================================================
+REM TrueLens - one-shot DB migration script (Windows cmd)
+REM Usage:  in cmd, from project root:  scripts\db-push.cmd
+REM         optional: scripts\db-push.cmd --set-admin admin@truelens.top
+REM Prereq: .env.local has DATABASE_URL (from Prisma Postgres / Vercel Postgres)
+REM ============================================================
 setlocal EnableDelayedExpansion
 
-REM 切到脚本所在目录的上级（项目根）
 cd /d "%~dp0.."
 
-echo 📁 工作目录: %CD%
+echo Working directory: %CD%
 
-REM 可选参数：--set-admin <email>  → 建表后顺便把指定邮箱提权为管理员
+REM Optional argument: --set-admin <email>  -> promote to admin after push
 set "ADMIN_EMAIL="
 set "SKIPNEXT=0"
 for %%A in (%*) do (
@@ -24,45 +23,46 @@ for %%A in (%*) do (
   )
 )
 
-REM 1. 确保依赖已安装
+REM 1. Ensure dependencies installed (prisma binary under node_modules/.bin)
 if not exist "node_modules\.bin\prisma.cmd" (
-  echo ⚠️  未找到 node_modules\prisma，先执行 npm install ...
+  echo WARN: node_modules\prisma not found, running npm install ...
   call npm install
 )
 
-REM 2. 读取 DATABASE_URL（Prisma CLI 默认只认 .env，不认 .env.local；这里从 .env.local 提取）
+REM 2. Load DATABASE_URL (Prisma CLI only reads .env, not .env.local; read from .env.local here)
 if not defined DATABASE_URL (
   for /f "tokens=1,* delims==" %%A in ('findstr /b "DATABASE_URL=" ".env.local" 2^>nul') do set "%%A=%%B"
 )
 
 if not defined DATABASE_URL (
-  echo ❌ 未检测到 DATABASE_URL。
-  echo    请先在 Vercel 创建 Postgres（或 Prisma Postgres），复制连接串，
-  echo    粘贴到本项目 .env.local 里（加一行：DATABASE_URL=postgresql://...）
+  echo ERROR: DATABASE_URL not found.
+  echo   Create a Postgres DB (Vercel or Prisma Postgres), copy the connection string,
+  echo   and add it to .env.local as:  DATABASE_URL=postgresql://user:pass@host:5432/db?sslmode=require
   exit /b 1
 )
 
-echo ✅ 检测到 DATABASE_URL，开始同步数据库结构 ...
+echo Found DATABASE_URL, syncing database schema ...
 
-REM 3. 同步 schema → 数据库
+REM 3. Push schema -> database (create tables / add isAdmin,plan columns)
 call node_modules\.bin\prisma.cmd db push --skip-generate
 if errorlevel 1 (
-  echo ❌ prisma db push 失败，请检查 DATABASE_URL 是否正确、以及网络（国内需代理/VPN 才能连外部 Postgres）。
+  echo ERROR: prisma db push failed. Check DATABASE_URL is correct and network
+  echo   (in CN, use a proxy/VPN to reach external Postgres).
   exit /b 1
 )
 
-REM 4. 重新生成 Prisma 客户端（与 Vercel 部署的 postinstall 保持一致）
+REM 4. Regenerate Prisma client (matches Vercel deploy postinstall)
 call node_modules\.bin\prisma.cmd generate
 
 echo.
-echo 🎉 数据库迁移完成！现在可以去 Vercel 配 ADMIN_EMAILS，用管理员邮箱登录测试了。
+echo DB migration complete! Now set ADMIN_EMAILS in Vercel and log in with that email to test.
 
-REM 可选：建表后顺便把指定邮箱提权为管理员
+REM Optional: promote admin right after push
 if defined ADMIN_EMAIL (
   echo.
-  echo 🔑 建表完成，开始把 !ADMIN_EMAIL! 设为管理员 ...
+  echo Promoting !ADMIN_EMAIL! to admin ...
   call scripts\set-admin.cmd !ADMIN_EMAIL!
-  if errorlevel 1 echo ⚠️  提权步骤未成功（若提示 NO_SUCH_USER，请先用该邮箱登录一次，再跑 scripts\set-admin.cmd）
+  if errorlevel 1 echo WARN: promotion step failed (if NO_SUCH_USER, log in with that email once, then run scripts\set-admin.cmd)
 )
 
 endlocal
