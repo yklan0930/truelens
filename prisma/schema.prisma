@@ -107,3 +107,15 @@ model DetectionHistory {
   @@index([userId, createdAt])
   @@map("detection_history")
 }
+
+/// Public share links: stores a detection result (+ small thumbnail) so it can
+/// be viewed / downloaded online via /s/[id]. No auth required to create.
+model SharedResult {
+  id        String   @id @default(cuid())
+  payload   String   @db.Text // JSON: { result: DetectionResult, thumbnail: string|null }
+  locale    String   @default("en")
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@map("shared_results")
+}

@@ -4,6 +4,7 @@ import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { useT, useLocale, type Locale } from "@/lib/i18n/context";
 import HeaderAuth from "@/components/auth/HeaderAuth";
+import { generateShareCard, makeShareThumb, type ShareCardLabels } from "@/lib/shareCard";
 
 interface Evidence {
   source: string;
@@ -211,119 +212,7 @@ function clearHistory() {
   localStorage.removeItem(HISTORY_KEY);
 }
 
-// --- Share card generator ---
-async function generateShareCard(
-  result: DetectionResult,
-  t: (key: string, params?: Record<string, string | number>) => string,
-  locale: Locale,
-  showCta = false
-): Promise<Blob> {
-  const canvas = document.createElement("canvas");
-  canvas.width = 600;
-  canvas.height = 400;
-  const ctx = canvas.getContext("2d")!;
-
-  // Background gradient
-  const gradient = ctx.createLinearGradient(0, 0, 600, 400);
-  gradient.addColorStop(0, "#4f46e5");
-  gradient.addColorStop(1, "#7c3aed");
-  ctx.fillStyle = gradient;
-  ctx.beginPath();
-  ctx.roundRect(0, 0, 600, 400, 20);
-  ctx.fill();
-
-  // TrueLens logo
-  ctx.fillStyle = "rgba(255,255,255,0.9)";
-  ctx.font = "bold 20px system-ui, sans-serif";
-  ctx.fillText(t("share.cardTitle"), 30, 45);
-
-  // Verdict
-  const verdictKey =
-    result.verdict === "likely_ai"
-      ? "result.verdict_ai_share"
-      : result.verdict === "likely_real"
-        ? "result.verdict_real_share"
-        : "result.verdict_uncertain_share";
-  const verdictText = t(verdictKey);
-
-  ctx.fillStyle = "white";
-  ctx.font = "bold 28px system-ui, sans-serif";
-  ctx.fillText(verdictText, 30, 100);
-
-  // AI Probability big number
-  const probColor = result.aiProbability >= 50 ? "#fca5a5" : "#86efac";
-  ctx.fillStyle = probColor;
-  ctx.font = "bold 72px system-ui, sans-serif";
-  ctx.fillText(`${result.aiProbability}%`, 30, 200);
-
-  ctx.fillStyle = "rgba(255,255,255,0.7)";
-  ctx.font = "16px system-ui, sans-serif";
-  ctx.fillText(t("share.cardAiProb"), 30, 232);
-
-  // Evidence summary OR anonymous CTA
-  ctx.font = "13px system-ui, sans-serif";
-  if (showCta) {
-    ctx.fillStyle = "rgba(255,255,255,0.9)";
-    ctx.fillText(t("share.cardCta"), 30, 286);
-  } else {
-    ctx.fillStyle = "rgba(255,255,255,0.6)";
-    let y = 280;
-    result.evidence.slice(0, 2).forEach((ev) => {
-      const icon = ev.type === "real" ? "✅" : ev.type === "ai" ? "⚠️" : "📋";
-      ctx.fillText(`${icon} ${ev.label}`, 30, y);
-      y += 24;
-    });
-  }
-
-  // Confidence
-  ctx.fillStyle = "rgba(255,255,255,0.6)";
-  ctx.font = "13px system-ui, sans-serif";
-  ctx.fillText(
-    t("share.cardConfidence", { confidence: result.confidence, ms: result.processingTimeMs }),
-    30,
-    322
-  );
-
-  // QR code (scannable → truelens.top) — optional, degrades gracefully
-  try {
-    const { toDataURL } = await import("qrcode");
-    const qrDataUrl = await toDataURL("https://truelens.top", {
-      width: 200,
-      margin: 1,
-      color: { dark: "#0f172a", light: "#ffffff" },
-    });
-    const qrImg = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => resolve(img);
-      img.onerror = reject;
-      img.src = qrDataUrl;
-    });
-    const qrSize = 104;
-    const qrX = 600 - 30 - qrSize;
-    const qrY = 150;
-    ctx.fillStyle = "#ffffff";
-    ctx.beginPath();
-    ctx.roundRect(qrX - 6, qrY - 6, qrSize + 12, qrSize + 12, 10);
-    ctx.fill();
-    ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
-    ctx.fillStyle = "rgba(255,255,255,0.85)";
-    ctx.font = "12px system-ui, sans-serif";
-    ctx.fillText(t("share.cardScan"), qrX, qrY + qrSize + 18);
-  } catch {
-    // QR is optional — card still works without it
-  }
-
-  // Bottom bar
-  ctx.fillStyle = "rgba(0,0,0,0.3)";
-  ctx.fillRect(0, 360, 600, 40);
-  ctx.fillStyle = "rgba(255,255,255,0.6)";
-  ctx.font = "12px system-ui, sans-serif";
-  ctx.fillText(t("share.cardFooter"), 30, 386);
-
-  return new Promise((resolve) => {
-    canvas.toBlob((blob) => resolve(blob!), "image/png");
-  });
-}
+// Share-card generator lives in lib/shareCard.ts (client-only, decoupled from i18n).
 
 // --- Client-side image compression (avoids Vercel's 4.5MB request-body limit) ---
 // Large phone photos / PNG screenshots are downscaled to a max dimension and
@@ -396,6 +285,10 @@ export default function Home() {
   const [feedbackMsg, setFeedbackMsg] = useState("");
   const [shareLoading, setShareLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [sharePreviewUrl, setSharePreviewUrl] = useState<string | null>(null);
+  const [shareToast, setShareToast] = useState<string | null>(null);
+  const shareBlobRef = useRef<Blob | null>(null);
+  const shareIdRef = useRef<string | null>(null);
   const [challengeSelected, setChallengeSelected] = useState<"left" | "right" | null>(null);
   const [currentChallenge, setCurrentChallenge] = useState<ChallengePair | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -612,19 +505,96 @@ export default function Home() {
   };
 
   // --- Share ---
+  const buildCardLabels = (): ShareCardLabels => ({
+    cardTitle: t("share.cardTitle"),
+    cardSubtitle: t("share.cardFooter"),
+    verdictAi: t("result.verdict_ai_share"),
+    verdictReal: t("result.verdict_real_share"),
+    verdictUncertain: t("result.verdict_uncertain_share"),
+    aiProb: t("share.cardAiProb"),
+    confidence: (c, ms) => t("share.cardConfidence", { confidence: c, ms }),
+    cta: t("share.cardCta"),
+    warning: t("share.cardWarning"),
+    scan: t("share.cardScan"),
+    footer: t("share.cardFooter"),
+    noImage: t("share.noImage"),
+  });
+
+  const buildCard = async (): Promise<Blob | null> => {
+    if (!result) return null;
+    const blob = await generateShareCard({
+      result,
+      imageDataUrl: image,
+      showCta: !showDetailed,
+      labels: buildCardLabels(),
+    });
+    shareBlobRef.current = blob;
+    setSharePreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(blob);
+    });
+    return blob;
+  };
+
+  // Generate a preview as soon as a result is available
+  useEffect(() => {
+    if (result) {
+      buildCard().catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result, showDetailed, image, locale]);
+
+  const showToast = (msg: string) => {
+    setShareToast(msg);
+    setTimeout(() => setShareToast((cur) => (cur === msg ? null : cur)), 3000);
+  };
+
+  const downloadCard = async (blob?: Blob) => {
+    const data = blob ?? shareBlobRef.current;
+    if (!data) return;
+    const url = URL.createObjectURL(data);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "truelens-result.png";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  const copyImageToClipboard = async (blob?: Blob) => {
+    const data = blob ?? shareBlobRef.current;
+    if (!data) return;
+    try {
+      if (
+        navigator.clipboard &&
+        "write" in navigator.clipboard &&
+        typeof ClipboardItem !== "undefined"
+      ) {
+        await navigator.clipboard.write([new ClipboardItem({ "image/png": data })]);
+        showToast(t("share.copyImageSuccess"));
+        return;
+      }
+    } catch {
+      // fall through to download
+    }
+    await downloadCard(data);
+    showToast(t("share.savedImage"));
+  };
+
   const handleShare = async () => {
     if (!result) return;
     setShareLoading(true);
-
     try {
-      const blob = await generateShareCard(result, t, locale, !showDetailed);
+      const blob = shareBlobRef.current ?? (await buildCard());
+      if (!blob) return;
       const file = new File([blob], "truelens-result.png", { type: "image/png" });
-
       const verdictText =
         result.verdict === "likely_ai"
           ? t("result.verdict_ai")
-          : t("result.verdict_real");
-
+          : result.verdict === "likely_real"
+            ? t("result.verdict_real")
+            : t("result.verdict_uncertain");
       if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({
           title: t("share.title"),
@@ -636,21 +606,62 @@ export default function Home() {
           files: [file],
         });
       } else {
-        // Fallback: copy text to clipboard
-        const text = t("share.copyTemplate", {
-          aiProbability: result.aiProbability,
-          verdict: verdictText,
-          confidence: result.confidence,
-        });
-        await navigator.clipboard.writeText(text);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 3000);
+        // Desktop fallback: copy image to clipboard + download
+        await copyImageToClipboard(blob);
+        await downloadCard(blob);
+        showToast(t("share.wechatHint"));
       }
     } catch {
       // Share cancelled or failed — no need to alert
     } finally {
       setShareLoading(false);
     }
+  };
+
+  const createShareLink = async (): Promise<string | null> => {
+    if (!result) return null;
+    if (shareIdRef.current) return `https://truelens.top/s/${shareIdRef.current}`;
+    try {
+      const thumb = image ? await makeShareThumb(image, 320) : null;
+      const res = await fetch("/api/share", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ result, thumbnail: thumb, locale }),
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (data?.id) {
+        shareIdRef.current = data.id;
+        return `https://truelens.top/s/${data.id}`;
+      }
+    } catch {
+      // ignore
+    }
+    return null;
+  };
+
+  const handleCopyText = async () => {
+    if (!result) return;
+    const verdictText =
+      result.verdict === "likely_ai"
+        ? t("result.verdict_ai")
+        : result.verdict === "likely_real"
+          ? t("result.verdict_real")
+          : t("result.verdict_uncertain");
+    const link = await createShareLink();
+    const text = link
+      ? t("share.copyTemplateLink", {
+          aiProbability: result.aiProbability,
+          verdict: verdictText,
+          link,
+        })
+      : t("share.copyTemplate", {
+          aiProbability: result.aiProbability,
+          verdict: verdictText,
+        });
+    await navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 3000);
   };
 
   // --- Export PDF report (Pro / Business / Admin only) ---
@@ -1298,6 +1309,17 @@ export default function Home() {
 
                 {/* Share */}
                 <div className="bg-white border border-slate-200 rounded-2xl p-5">
+                  <p className="text-sm font-medium text-slate-700 mb-3">
+                    {t("share.shareResult")}
+                  </p>
+
+                  {/* Live preview of the shareable result card */}
+                  {sharePreviewUrl && (
+                    <div className="mb-4 rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
+                      <img src={sharePreviewUrl} alt="share preview" className="w-full h-auto" />
+                    </div>
+                  )}
+
                   <div className="flex flex-wrap items-center gap-3">
                     <button
                       onClick={handleShare}
@@ -1305,35 +1327,35 @@ export default function Home() {
                       className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 px-5 rounded-xl transition-colors min-h-[48px]"
                     >
                       <span>📤</span>{" "}
-                      {shareLoading
-                        ? t("share.generating")
-                        : copied
-                          ? t("share.copied")
-                          : t("share.shareResult")}
+                      {shareLoading ? t("share.generating") : t("share.shareImage")}
                     </button>
                     <button
-                      onClick={async () => {
-                        const verdictText =
-                          result.verdict === "likely_ai"
-                            ? t("result.verdict_ai")
-                            : t("result.verdict_real");
-                        const text = t("share.copyTemplate", {
-                          aiProbability: result.aiProbability,
-                          verdict: verdictText,
-                          confidence: result.confidence,
-                        });
-                        await navigator.clipboard.writeText(text);
-                        setCopied(true);
-                        setTimeout(() => setCopied(false), 3000);
-                      }}
-                      className="flex items-center gap-2 text-slate-600 font-medium py-3 px-5 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors min-h-[48px]"
+                      onClick={() => copyImageToClipboard()}
+                      className="flex items-center gap-2 text-slate-700 font-medium py-3 px-5 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors min-h-[48px]"
+                    >
+                      <span>🖼️</span> {t("share.copyImage")}
+                    </button>
+                    <button
+                      onClick={() => downloadCard()}
+                      className="flex items-center gap-2 text-slate-700 font-medium py-3 px-5 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors min-h-[48px]"
+                    >
+                      <span>💾</span> {t("share.saveImage")}
+                    </button>
+                    <button
+                      onClick={handleCopyText}
+                      className="flex items-center gap-2 text-slate-700 font-medium py-3 px-5 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors min-h-[48px]"
                     >
                       <span>📋</span> {copied ? t("share.copied") : t("share.copyText")}
                     </button>
                   </div>
-                  {copied && (
+
+                  {shareToast && (
+                    <p className="mt-2 text-xs text-indigo-600">{shareToast}</p>
+                  )}
+                  {copied && !shareToast && (
                     <p className="mt-2 text-xs text-green-600">{t("share.copySuccess")}</p>
                   )}
+                  <p className="mt-2 text-xs text-slate-400">{t("share.wechatHint")}</p>
                 </div>
 
                 {/* Feedback */}
