@@ -49,7 +49,7 @@ export default function SharedResultPage() {
     verdictReal: t("result.verdict_real_share"),
     verdictUncertain: t("result.verdict_uncertain_share"),
     aiProb: t("share.cardAiProb"),
-    confidence: (c, ms) => t("share.cardConfidence", { confidence: c, ms }),
+    confidence: (c, ms) => t("share.cardConfidence", { confidence: c, s: (ms / 1000).toFixed(2) }),
     cta: t("share.cardCta"),
     warning: t("share.cardWarning"),
     scan: t("share.cardScan"),
@@ -166,7 +166,7 @@ export default function SharedResultPage() {
                   <p className="text-xs text-slate-500 mt-1">
                     {t("share.cardConfidence", {
                       confidence: r.confidence,
-                      ms: r.processingTimeMs,
+                      s: (r.processingTimeMs / 1000).toFixed(2),
                     })}
                   </p>
                 </div>

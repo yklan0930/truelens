@@ -515,7 +515,7 @@ export default function Home() {
     verdictReal: t("result.verdict_real_share"),
     verdictUncertain: t("result.verdict_uncertain_share"),
     aiProb: t("share.cardAiProb"),
-    confidence: (c, ms) => t("share.cardConfidence", { confidence: c, ms }),
+    confidence: (c, ms) => t("share.cardConfidence", { confidence: c, s: (ms / 1000).toFixed(2) }),
     cta: t("share.cardCta"),
     warning: t("share.cardWarning"),
     scan: t("share.cardScan"),
@@ -1489,7 +1489,7 @@ export default function Home() {
                         {t("result.fileSize", { size: (result.fileSize / 1024).toFixed(0) })}
                       </span>
                       <span>
-                        {t("result.processingTime", { ms: result.processingTimeMs })}
+                        {t("result.processingTime", { s: (result.processingTimeMs / 1000).toFixed(2) })}
                       </span>
                     </div>
                   </div>

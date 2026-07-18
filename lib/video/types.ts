@@ -35,7 +35,8 @@ export function verdictFromProbability(prob: number): VideoVerdict {
 }
 
 // Confidence derived from how far the probability sits from the 50% midpoint.
+// Capped at 99 — we never report absolute certainty (leaves room, avoids disputes).
 export function confidenceFromProbability(prob: number): number {
   const c = Math.abs(prob - 50) * 2; // 0 at 50%, 100 at 0/100%
-  return Math.round(Math.max(0, Math.min(100, c)));
+  return Math.round(Math.max(0, Math.min(99, c)));
 }

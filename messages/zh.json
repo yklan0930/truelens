@@ -67,7 +67,7 @@
     "prob_ai": "AI 生成",
     "evidenceTitle": "检测证据",
     "fileSize": "文件大小：{size} KB",
-    "processingTime": "检测耗时：{ms}ms",
+    "processingTime": "检测耗时：{s} 秒",
     "disclaimer": "TrueLens 结果仅供参考，不作为法律证据。AI 检测技术仍在发展中，可能存在误判。",
     "screenTip": "⚠️ 疑似屏幕翻拍：本图带有摩尔纹 / 像素网格等屏幕翻拍特征，极易被误判为 AI 生成。建议直接上传原始截图文件（而非手机翻拍）以获得可靠结果；当前判定仅供参考。"
   },
@@ -90,7 +90,7 @@
     "copyTemplateLink": "🔍 我刚用 TrueLens 测出这张图 AI 概率 {aiProbability}%（{verdict}）\n📊 查看完整结果：{link}\n🕵 免费测你的图片：https://truelens.top",
     "cardTitle": "🔍 TrueLens",
     "cardAiProb": "AI 生成概率",
-    "cardConfidence": "置信度 {confidence}% · 耗时 {ms}ms",
+    "cardConfidence": "置信度 {confidence}% · 耗时 {s} 秒",
     "cardFooter": "truelens.top · AI 内容真伪检测",
     "cardCta": "🔓 免费查看完整证据报告",
     "cardScan": "扫码免费测",

@@ -416,8 +416,15 @@ export async function analyzeImage(
     });
   }
 
+  // Never report absolute certainty. Cap confidence at 99 and clamp the AI
+  // probability to [1, 99] so no result reads as a disputable "100% / 0%".
+  // Verdict is already decided above from the raw percentage, so this only
+  // affects the displayed numbers.
+  confidence = Math.min(99, confidence);
+  const aiProbabilityDisplay = Math.min(99, Math.max(1, aiPercent));
+
   return {
-    aiProbability: aiPercent,
+    aiProbability: aiProbabilityDisplay,
     verdict,
     confidence,
     engines,

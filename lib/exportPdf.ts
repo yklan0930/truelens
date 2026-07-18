@@ -186,7 +186,7 @@ function buildReportNode(input: ExportPdfInput): HTMLElement {
   disc.textContent = t("result.disclaimer");
   const meta = document.createElement("div");
   meta.style.cssText = `font-size:8px;color:${C.slateLight};margin-top:6px;line-height:1.5;`;
-  meta.textContent = `${t("pdf.analyzed")}: ${fileName}  ·  ${t("result.fileSize", { size: Math.round(fileSize / 1024) })}  ·  ${t("result.processingTime", { ms: processingTimeMs })}`;
+  meta.textContent = `${t("pdf.analyzed")}: ${fileName}  ·  ${t("result.fileSize", { size: Math.round(fileSize / 1024) })}  ·  ${t("result.processingTime", { s: (processingTimeMs / 1000).toFixed(2) })}`;
   const stamp = document.createElement("div");
   stamp.style.cssText = `font-size:8px;color:${C.slateLight};margin-top:3px;`;
   stamp.textContent = `${t("pdf.generatedAt")}: ${new Date().toLocaleString(locale === "zh" ? "zh-CN" : "en-US")}  ·  truelens.top`;

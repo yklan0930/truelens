@@ -67,7 +67,7 @@
     "prob_ai": "AI-Generated",
     "evidenceTitle": "Detection Evidence",
     "fileSize": "File size: {size} KB",
-    "processingTime": "Processing time: {ms}ms",
+    "processingTime": "Processing time: {s}s",
     "disclaimer": "TrueLens results are for reference only and do not constitute legal evidence. AI detection technology is still evolving and may produce errors.",
     "screenTip": "⚠️ Possible screen re-photo: this image shows moiré / pixel-grid patterns typical of a photo taken of a screen. Such images are easily mis-flagged as AI. Upload the original screenshot file (not a camera photo of the screen) for a reliable result; the current verdict is for reference only."
   },
@@ -90,7 +90,7 @@
     "copyTemplateLink": "🔍 I just tested an image on TrueLens: AI {aiProbability}% ({verdict})\n📊 View full result: {link}\n🕵 Check yours free: https://truelens.top",
     "cardTitle": "🔍 TrueLens",
     "cardAiProb": "AI Probability",
-    "cardConfidence": "Confidence {confidence}% · {ms}ms",
+    "cardConfidence": "Confidence {confidence}% · {s}s",
     "cardFooter": "truelens.top · AI Content Detection",
     "cardCta": "🔓 View full evidence report free",
     "cardScan": "Scan to try free",

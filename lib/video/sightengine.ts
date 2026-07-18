@@ -70,7 +70,8 @@ export function normalizeSightengineResult(raw: unknown, meta?: { fileName?: str
   const probRaw =
     r?.type?.prob ?? r?.summary?.avg_prob ?? r?.prob ?? 0.5;
   const prob = Math.max(0, Math.min(1, Number(probRaw) || 0.5));
-  const aiProbability = Math.round(prob * 100);
+  // Clamp to [1, 99] so no result reads as a disputable "100% / 0%".
+  const aiProbability = Math.min(99, Math.max(1, Math.round(prob * 100)));
   const verdict = verdictFromProbability(aiProbability);
   const confidence = confidenceFromProbability(aiProbability);
 
