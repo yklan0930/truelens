@@ -138,34 +138,22 @@ interface HistoryItem {
   timestamp: number;
 }
 
-const ANON_LIMIT = 1;
-const USER_LIMIT = 5;
+const ANON_LIMIT = 3; // anonymous monthly high-precision grants (matches server ANON_MONTHLY_CREDITS)
+const USER_LIMIT = 5; // logged-in free monthly grants
 
-// --- Quota helpers ---
-function getTodayKey() {
+// --- Quota helpers (monthly, client-side best-effort; server cookie/DB is authoritative) ---
+function getMonthKey() {
   const now = new Date();
-  return `truelens_count_${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`;
+  return `truelens_month_${now.getFullYear()}-${now.getMonth() + 1}`;
 }
 
-function getDailyCount() {
+function getMonthCount() {
   if (typeof window === "undefined") return 0;
-  return parseInt(localStorage.getItem(getTodayKey()) || "0", 10);
-}
-
-function incrementDailyCount() {
-  if (typeof window === "undefined") return;
-  const key = getTodayKey();
-  const count = getDailyCount();
-  localStorage.setItem(key, String(count + 1));
-  Object.keys(localStorage).forEach((k) => {
-    if (k.startsWith("truelens_count_") && k !== key) {
-      localStorage.removeItem(k);
-    }
-  });
+  return parseInt(localStorage.getItem(getMonthKey()) || "0", 10);
 }
 
 function getRemainingAnonQuota() {
-  return Math.max(0, ANON_LIMIT - getDailyCount());
+  return Math.max(0, ANON_LIMIT - getMonthCount());
 }
 
 // --- History helpers ---
@@ -283,6 +271,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [quota, setQuota] = useState(ANON_LIMIT); // reflects actual remaining detections
+  const [baseModelNotice, setBaseModelNotice] = useState(false); // true when free grant exhausted -> base model
   const [showDetailed, setShowDetailed] = useState(true); // professional report entitlement
   const [authUnlimited, setAuthUnlimited] = useState(false); // admin: unlimited detections
   const [userPlan, setUserPlan] = useState<string>("free");
@@ -394,17 +383,12 @@ export default function Home() {
   const handleDetect = async () => {
     if (!image) return;
 
-    // For anonymous users, check localStorage quota before sending request
-    if (!isAuthenticated) {
-      const remaining = getRemainingAnonQuota();
-      if (remaining <= 0) {
-        setError(t("errors.quotaExhausted"));
-        return;
-      }
-    }
-
+    // Server is authoritative: when the monthly high-precision grant is
+    // exhausted it DEGRADES to the zero-cost base model instead of blocking,
+    // so we never hard-stop the user here.
     setLoading(true);
     setError(null);
+    setBaseModelNotice(false);
     setFeedbackState("none");
 
     try {
@@ -497,7 +481,8 @@ export default function Home() {
           setResult(synthesizeLocalAiResult(ocr.text, fileName, fileRef.current?.size ?? blob.size));
           setShowDetailed(true);
           if (!isAuthenticated) {
-            incrementDailyCount();
+            // OCR-only local verdict (API unreachable): server does not track
+            // this usage, so just refresh the best-effort client counter.
             setQuota(getRemainingAnonQuota());
           }
           setFeedbackState("none");
@@ -519,16 +504,21 @@ export default function Home() {
       setAuthUnlimited(!!data.auth?.unlimited);
       setUserPlan(data.auth?.plan || "free");
       setIsAdminUser(!!data.auth?.isAdmin);
+      setBaseModelNotice(!!data.usedBaseModel);
 
       if (data.auth?.authenticated) {
         if (data.auth.unlimited) {
           setQuota(9999); // sentinel; display uses authUnlimited
         } else {
-          setQuota(data.auth.dailyRemaining);
+          setQuota(data.auth.monthlyRemaining);
         }
       } else {
-        incrementDailyCount();
-        setQuota(getRemainingAnonQuota());
+        // Anonymous: server tracks usage in an httpOnly cookie; use its count.
+        setQuota(
+          data.auth?.monthlyRemaining != null
+            ? data.auth.monthlyRemaining
+            : getRemainingAnonQuota()
+        );
       }
 
       // Store a small thumbnail (not the full base64) to avoid blowing the
@@ -1352,6 +1342,14 @@ export default function Home() {
                     <p className="mt-2 text-xs text-red-500">{t("errors.proComing")}</p>
                   )}
                 </div>
+              </div>
+            )}
+
+            {/* Base-model fallback notice (free high-precision grant used up) */}
+            {baseModelNotice && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-amber-800 text-sm flex items-start gap-3">
+                <span className="text-lg shrink-0">ℹ️</span>
+                <p>{t("result.baseModelNotice")}</p>
               </div>
             )}
 

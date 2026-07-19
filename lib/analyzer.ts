@@ -111,7 +111,8 @@ export async function analyzeImage(
   imageBuffer: Buffer,
   hfToken: string,
   filename?: string,
-  locale: ServerLocale = "zh"
+  locale: ServerLocale = "zh",
+  opts?: { useBaseOnly?: boolean }
 ): Promise<DetectionResult> {
   const t = (key: string, params?: Record<string, string | number>) =>
     serverT(locale, key);
@@ -122,7 +123,10 @@ export async function analyzeImage(
   // Sightengine (paid `genai`) is the PRIMARY detector when configured. The
   // free HF model (Ateeqq) is a cheap fallback used only when Sightengine is
   // unavailable (no key, or API/network error).
-  const useSightengine = isSightengineImageConfigured();
+  // `useBaseOnly` (set when a user's monthly high-precision credits are
+  // exhausted) forces the zero-cost base path even if Sightengine is
+  // configured — so free users keep detecting without spending paid ops.
+  const useSightengine = isSightengineImageConfigured() && !opts?.useBaseOnly;
 
   const tasks: Promise<unknown>[] = [analyzeExif(imageBuffer, filename, locale)];
   let seTaskIdx = -1;

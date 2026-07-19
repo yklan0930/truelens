@@ -1,51 +1,51 @@
-// Video-detection quota logic. Videos are heavier than images, so they get
-// their own daily counters (VideoUsageRecord) and more conservative limits.
-// Reuses the same Prisma/Postgres setup as the image quota.
+// Video-detection quota (TrueLens v0.6.6)
+//
+// Videos draw from the SAME monthly credit pool as images — each video costs
+// VIDEO_COST (8) credits, so a free user (3 credits/mo) cannot run a video,
+// while a Pro user (500) gets ~62 videos/mo. We reuse the existing
+// `video_usage_records` table keyed on (userId, date); `date` is written as
+// the FIRST DAY OF THE MONTH, so a user has one row per month and `count`
+// accumulates the credits spent on videos this month. No schema migration.
 
-export const VIDEO_ANON_DAILY_LIMIT = 1; // anonymous (no DB row)
-export const VIDEO_FREE_DAILY_LIMIT = 3; // logged-in free
-export const VIDEO_PRO_DAILY_LIMIT = 20; // pro
-// business / admin => unlimited (Infinity)
+import { monthlyLimitFor, VIDEO_COST, firstOfMonth, type Plan } from "@/lib/quota";
 
-export function videoDailyLimit(plan: string, isAdmin: boolean, unlimited: boolean): number {
-  if (isAdmin || unlimited || plan === "business") return Infinity;
-  if (plan === "pro") return VIDEO_PRO_DAILY_LIMIT;
-  if (plan === "free") return VIDEO_FREE_DAILY_LIMIT;
-  return VIDEO_FREE_DAILY_LIMIT;
-}
+export { VIDEO_COST };
 
-function getTodayDate(): Date {
-  const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+// Resolve a user's monthly credit limit (same pool as images).
+export function videoMonthlyLimit(
+  plan: Plan,
+  isAdmin: boolean,
+  unlimited: boolean
+): number {
+  return monthlyLimitFor(plan, isAdmin, unlimited);
 }
 
 export interface VideoQuotaState {
-  allowed: boolean;
-  limit: number; // Infinity for unlimited
-  used: number;
+  allowed: boolean; // enough credits for one video (VIDEO_COST)?
+  limit: number; // monthly credit limit (Infinity for unlimited)
+  used: number; // video-credits used this month
+  cost: number; // = VIDEO_COST
 }
 
 export async function checkVideoQuota(userId: string): Promise<VideoQuotaState> {
   const { prisma } = await import("@/lib/prisma");
-  const today = getTodayDate();
   const rec = await prisma.videoUsageRecord.findUnique({
-    where: { userId_date: { userId, date: today } },
+    where: { userId_date: { userId, date: firstOfMonth() } },
   });
-  // Limit is resolved by the caller (plan-aware); here we only report usage.
-  // The caller compares `used >= limit`.
+  // `used` is cumulative video-credits (each video adds VIDEO_COST).
   return {
-    allowed: true,
-    limit: Infinity, // caller overrides with videoDailyLimit()
+    allowed: true, // caller compares against its own limit
+    limit: Infinity,
     used: rec?.count ?? 0,
+    cost: VIDEO_COST,
   };
 }
 
 export async function incrementVideoUsage(userId: string): Promise<void> {
   const { prisma } = await import("@/lib/prisma");
-  const today = getTodayDate();
   await prisma.videoUsageRecord.upsert({
-    where: { userId_date: { userId, date: today } },
-    create: { userId, date: today, count: 1 },
-    update: { count: { increment: 1 } },
+    where: { userId_date: { userId, date: firstOfMonth() } },
+    create: { userId, date: firstOfMonth(), count: VIDEO_COST },
+    update: { count: { increment: VIDEO_COST } },
   });
 }

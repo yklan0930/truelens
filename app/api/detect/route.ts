@@ -2,14 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { analyzeImage } from "@/lib/analyzer";
 import { serverT, detectLocale, type ServerLocale } from "@/lib/i18n/server";
 import { auth } from "@/lib/auth";
+import {
+  monthlyLimitFor,
+  ANON_MONTHLY_CREDITS,
+  IMAGE_COST,
+  monthKey,
+  firstOfMonth,
+  hasCredits,
+  type Plan,
+} from "@/lib/quota";
 
 export const runtime = "nodejs";
 export const maxDuration = 30; // 30 seconds max
-
-// --- Limits ---
-const ANON_DAILY_LIMIT = 1; // anonymous users
-const USER_DAILY_LIMIT = 5; // logged-in free users
-const PAID_DAILY_LIMIT = 50; // pro members
 
 // Parse a comma-separated env var of emails (case-insensitive).
 function parseEmails(env?: string): string[] {
@@ -71,17 +75,27 @@ function getClientIP(request: NextRequest): string {
   return "unknown";
 }
 
+// Read the anonymous monthly-credit counter from the httpOnly cookie.
+function readAnonCredits(request: NextRequest): { month: string; used: number } {
+  try {
+    const raw = request.cookies.get("tl_anon_credits")?.value;
+    if (!raw) return { month: "", used: 0 };
+    const o = JSON.parse(raw);
+    return {
+      month: typeof o.m === "string" ? o.m : "",
+      used: typeof o.u === "number" ? o.u : 0,
+    };
+  } catch {
+    return { month: "", used: 0 };
+  }
+}
+
 // Allowed MIME types
 const ALLOWED_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 function isDatabaseConfigured() {
   return !!process.env.DATABASE_URL && !process.env.DATABASE_URL.includes("localhost:5432/truelens");
-}
-
-function getTodayDate(): Date {
-  const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
 }
 
 export async function POST(request: NextRequest) {
@@ -165,14 +179,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // --- Check auth + usage + entitlement (if database is configured) ---
+    // --- Check auth + monthly credit entitlement (if database is configured) ---
     let userId: string | null = null;
-    let userDailyCount = 0;
-    let dailyLimit = ANON_DAILY_LIMIT;
     let isAdmin = false;
-    let plan = "free";
+    let plan: Plan = "free";
     let unlimited = false;
     let showDetailed = false;
+
+    // Monthly credit state (replaces the old daily counters).
+    let monthlyLimit = ANON_MONTHLY_CREDITS;
+    let monthlyUsed = 0;
+    let useBaseOnly = false; // true => run zero-cost base model (free grant used up)
+
+    const resolveAnon = () => {
+      const anon = readAnonCredits(request);
+      if (anon.month === monthKey()) monthlyUsed = anon.used;
+      monthlyLimit = ANON_MONTHLY_CREDITS;
+      if (!hasCredits(monthlyUsed, monthlyLimit, IMAGE_COST)) useBaseOnly = true;
+    };
 
     if (isDatabaseConfigured()) {
       try {
@@ -180,9 +204,8 @@ export async function POST(request: NextRequest) {
         const session = await auth();
         if (session?.user?.id) {
           userId = session.user.id;
-          dailyLimit = USER_DAILY_LIMIT;
           isAdmin = !!session.user.isAdmin;
-          plan = session.user.plan || "free";
+          plan = (session.user.plan as Plan) || "free";
 
           // Env overrides (set in Vercel) — handy before DB role migration.
           const adminEmails = parseEmails(process.env.ADMIN_EMAILS);
@@ -199,7 +222,7 @@ export async function POST(request: NextRequest) {
             });
             if (dbUser) {
               if (dbUser.isAdmin) isAdmin = true;
-              if (dbUser.plan && dbUser.plan !== "free") plan = dbUser.plan;
+              if (dbUser.plan && dbUser.plan !== "free") plan = dbUser.plan as Plan;
             }
           } catch {
             // keep env/token values
@@ -207,29 +230,26 @@ export async function POST(request: NextRequest) {
 
           unlimited = isAdmin || plan === "business";
           showDetailed = isAdmin || plan !== "free";
-          if (plan === "pro") dailyLimit = PAID_DAILY_LIMIT;
-          if (unlimited) dailyLimit = Infinity;
+          monthlyLimit = monthlyLimitFor(plan, isAdmin, unlimited);
 
-          // Enforce quota unless unlimited.
-          if (dailyLimit !== Infinity) {
-            const today = getTodayDate();
-            const usage = await prisma.usageRecord.findUnique({
-              where: { userId_date: { userId, date: today } },
-            });
-            userDailyCount = usage?.count || 0;
-
-            if (userDailyCount >= dailyLimit) {
-              return NextResponse.json(
-                { error: t("errors.quotaExhausted") },
-                { status: 429 }
-              );
-            }
-          }
+          // Read this month's high-precision usage; degrade to base if exhausted.
+          const monthRow = await prisma.usageRecord.findUnique({
+            where: { userId_date: { userId, date: firstOfMonth() } },
+          });
+          monthlyUsed = monthRow?.count ?? 0;
+          if (!hasCredits(monthlyUsed, monthlyLimit, IMAGE_COST)) useBaseOnly = true;
+        } else {
+          // Logged-out visitor: cookie-based monthly counter.
+          resolveAnon();
         }
       } catch (dbError) {
-        // Database error — gracefully degrade to anonymous mode
+        // Database error — gracefully degrade to anonymous mode.
         console.error("[TrueLens] DB error during auth check:", dbError);
+        resolveAnon();
       }
+    } else {
+      // No database configured (local dev) — anonymous cookie counter.
+      resolveAnon();
     }
 
     // --- Convert File to Buffer (in memory, not persisted) ---
@@ -237,7 +257,11 @@ export async function POST(request: NextRequest) {
     const imageBuffer = Buffer.from(arrayBuffer);
 
     // --- Run analysis with locale and original filename ---
-    const result = await analyzeImage(imageBuffer, hfToken, file.name, locale);
+    // When the monthly high-precision grant is exhausted we degrade to the
+    // zero-cost base model instead of blocking the user.
+    const result = await analyzeImage(imageBuffer, hfToken, file.name, locale, {
+      useBaseOnly,
+    });
 
     // --- Entitlement: hide the professional report from trial users ---
     // Free/anonymous users only receive the verdict + probability. The detailed
@@ -250,26 +274,29 @@ export async function POST(request: NextRequest) {
       result.calibration = undefined;
     }
 
-    // --- Track usage for authenticated users ---
+    // --- Track usage for authenticated users (high-precision only) ---
+    // Base-model detections (free grant exhausted) cost no credits, so they
+    // are NOT counted against the monthly quota — but they are still logged.
     if (userId && isDatabaseConfigured()) {
       try {
         const { prisma } = await import("@/lib/prisma");
-        const today = getTodayDate();
 
-        // Increment usage count
-        await prisma.usageRecord.upsert({
-          where: {
-            userId_date: { userId, date: today },
-          },
-          create: {
-            userId,
-            date: today,
-            count: 1,
-          },
-          update: {
-            count: { increment: 1 },
-          },
-        });
+        if (!useBaseOnly) {
+          // Increment this month's high-precision usage (one row per month).
+          await prisma.usageRecord.upsert({
+            where: {
+              userId_date: { userId, date: firstOfMonth() },
+            },
+            create: {
+              userId,
+              date: firstOfMonth(),
+              count: 1,
+            },
+            update: {
+              count: { increment: 1 },
+            },
+          });
+        }
 
         // Save detection history
         await prisma.detectionHistory.create({
@@ -291,8 +318,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Return result with rate limit headers
+    const hpCost = useBaseOnly ? 0 : IMAGE_COST;
+    const monthlyRemaining =
+      monthlyLimit === Infinity
+        ? -1
+        : Math.max(0, monthlyLimit - monthlyUsed - hpCost);
+
     const response = NextResponse.json({
       success: true,
+      usedBaseModel: useBaseOnly,
       showDetailed,
       result: {
         aiProbability: result.aiProbability,
@@ -305,7 +339,7 @@ export async function POST(request: NextRequest) {
         fileName: file.name,
         fileSize: file.size,
       },
-      // Include auth context for client
+      // Include auth/quota context for client
       auth: userId
         ? {
             authenticated: true,
@@ -313,12 +347,10 @@ export async function POST(request: NextRequest) {
             isAdmin,
             plan,
             showDetailed,
-            dailyLimit: dailyLimit === Infinity ? -1 : dailyLimit,
-            dailyUsed: userDailyCount + 1,
-            dailyRemaining:
-              dailyLimit === Infinity
-                ? -1
-                : Math.max(0, dailyLimit - userDailyCount - 1),
+            monthlyLimit: monthlyLimit === Infinity ? -1 : monthlyLimit,
+            monthlyUsed: monthlyUsed + hpCost,
+            monthlyRemaining,
+            usedBaseModel: useBaseOnly,
           }
         : {
             authenticated: false,
@@ -326,9 +358,21 @@ export async function POST(request: NextRequest) {
             isAdmin: false,
             plan: "free",
             showDetailed: false,
-            dailyLimit: ANON_DAILY_LIMIT,
+            monthlyLimit: ANON_MONTHLY_CREDITS,
+            monthlyUsed: monthlyUsed + hpCost,
+            monthlyRemaining: ANON_MONTHLY_CREDITS - monthlyUsed - hpCost,
+            usedBaseModel: useBaseOnly,
           },
     });
+
+    // Persist anonymous monthly counter in an httpOnly cookie (server-enforced).
+    if (!userId) {
+      response.cookies.set(
+        "tl_anon_credits",
+        JSON.stringify({ m: monthKey(), u: monthlyUsed + hpCost }),
+        { httpOnly: true, sameSite: "lax", maxAge: 60 * 60 * 24 * 32, path: "/" }
+      );
+    }
 
     response.headers.set("X-RateLimit-Limit", String(RATE_LIMIT_MAX));
     response.headers.set("X-RateLimit-Remaining", String(rateLimit.remaining));

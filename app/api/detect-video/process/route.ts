@@ -13,17 +13,23 @@ import {
   type FrameDetection,
 } from "@/lib/video/aggregateFrames";
 import {
-  videoDailyLimit,
   incrementVideoUsage,
 } from "@/lib/video/quota";
 import { auth } from "@/lib/auth";
 import type { VideoResult } from "@/lib/video/types";
+import {
+  monthlyLimitFor,
+  ANON_MONTHLY_CREDITS,
+  VIDEO_COST,
+  firstOfMonth,
+  hasCredits,
+  type Plan,
+} from "@/lib/quota";
 
 export const runtime = "nodejs";
 export const maxDuration = 60; // up to 8 frames * HF model latency
 export const dynamic = "force-dynamic";
 
-const ANON_DAILY_LIMIT = 1;
 const MAX_FRAMES = 12;
 const MAX_FRAME_SIZE = 6 * 1024 * 1024; // 6MB per frame (decoded JPEG)
 
@@ -42,10 +48,12 @@ function isDatabaseConfigured() {
 interface AuthInfo {
   userId: string | null;
   isAdmin: boolean;
-  plan: string;
+  plan: Plan;
   unlimited: boolean;
   showDetailed: boolean;
-  dailyLimit: number;
+  monthlyLimit: number;
+  monthlyUsed: number;
+  monthlyRemaining: number;
 }
 
 async function resolveAuth(): Promise<AuthInfo> {
@@ -55,7 +63,9 @@ async function resolveAuth(): Promise<AuthInfo> {
     plan: "free",
     unlimited: false,
     showDetailed: false,
-    dailyLimit: ANON_DAILY_LIMIT,
+    monthlyLimit: ANON_MONTHLY_CREDITS,
+    monthlyUsed: 0,
+    monthlyRemaining: ANON_MONTHLY_CREDITS,
   };
   if (!isDatabaseConfigured()) return info;
 
@@ -65,7 +75,7 @@ async function resolveAuth(): Promise<AuthInfo> {
     if (session?.user?.id) {
       info.userId = session.user.id;
       info.isAdmin = !!session.user.isAdmin;
-      info.plan = session.user.plan || "free";
+      info.plan = (session.user.plan as Plan) || "free";
       const adminEmails = parseEmails(process.env.ADMIN_EMAILS);
       const paidEmails = parseEmails(process.env.PAID_EMAILS);
       const email = (session.user.email || "").toLowerCase();
@@ -78,24 +88,29 @@ async function resolveAuth(): Promise<AuthInfo> {
         });
         if (dbUser) {
           if (dbUser.isAdmin) info.isAdmin = true;
-          if (dbUser.plan && dbUser.plan !== "free") info.plan = dbUser.plan;
+          if (dbUser.plan && dbUser.plan !== "free") info.plan = dbUser.plan as Plan;
         }
       } catch { /* keep */ }
 
       info.unlimited = info.isAdmin || info.plan === "business";
       info.showDetailed = info.isAdmin || info.plan !== "free";
-      const limit = videoDailyLimit(info.plan, info.isAdmin, info.unlimited);
-      info.dailyLimit = limit;
+      info.monthlyLimit = monthlyLimitFor(info.plan, info.isAdmin, info.unlimited);
 
-      if (limit !== Infinity) {
-        const today = new Date(); today.setHours(0, 0, 0, 0);
-        const usage = await prisma.videoUsageRecord.findUnique({
-          where: { userId_date: { userId: info.userId, date: today } },
-        });
-        if ((usage?.count ?? 0) >= limit) {
-          throw new Error("QUOTA_EXHAUSTED");
-        }
+      // Read this month's video-credit usage; block if a video (VIDEO_COST) won't fit.
+      const usage = await prisma.videoUsageRecord.findUnique({
+        where: { userId_date: { userId: info.userId, date: firstOfMonth() } },
+      });
+      info.monthlyUsed = usage?.count ?? 0;
+      if (!hasCredits(info.monthlyUsed, info.monthlyLimit, VIDEO_COST)) {
+        throw new Error("QUOTA_EXHAUSTED");
       }
+      info.monthlyRemaining =
+        info.monthlyLimit === Infinity
+          ? -1
+          : Math.max(0, info.monthlyLimit - info.monthlyUsed);
+    } else {
+      // Anonymous visitors cannot run videos (cost 8 > anon grant of 3).
+      throw new Error("QUOTA_EXHAUSTED");
     }
   } catch (e) {
     if (e instanceof Error && e.message === "QUOTA_EXHAUSTED") throw e;
@@ -192,7 +207,10 @@ export async function POST(request: NextRequest) {
       isAdmin: authInfo.isAdmin,
       plan: authInfo.plan,
       showDetailed: authInfo.showDetailed,
-      dailyLimit: authInfo.dailyLimit === Infinity ? -1 : authInfo.dailyLimit,
+      monthlyLimit: authInfo.monthlyLimit === Infinity ? -1 : authInfo.monthlyLimit,
+      monthlyUsed: authInfo.monthlyUsed,
+      monthlyRemaining: authInfo.monthlyRemaining,
+      usedBaseModel: false,
     },
   });
 }

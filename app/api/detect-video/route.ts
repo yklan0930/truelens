@@ -4,14 +4,19 @@ import { auth } from "@/lib/auth";
 import { resolveVideoEngine } from "@/lib/video/engine";
 import { submitSightengineVideo } from "@/lib/video/sightengine";
 import {
-  videoDailyLimit,
   incrementVideoUsage,
 } from "@/lib/video/quota";
+import {
+  monthlyLimitFor,
+  ANON_MONTHLY_CREDITS,
+  VIDEO_COST,
+  firstOfMonth,
+  hasCredits,
+  type Plan,
+} from "@/lib/quota";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
-
-const ANON_DAILY_LIMIT = 1;
 
 function parseEmails(env?: string): string[] {
   return (env || "")
@@ -78,13 +83,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: t("video.fileTooLarge") }, { status: 413 });
   }
 
-  // --- Resolve auth + quota (mirrors image detect route) ---
+  // --- Resolve auth + monthly credit quota (mirrors image detect route) ---
   let userId: string | null = null;
   let isAdmin = false;
-  let plan = "free";
+  let plan: Plan = "free";
   let unlimited = false;
   let showDetailed = false;
-  let dailyLimit = ANON_DAILY_LIMIT;
+  let monthlyLimit = ANON_MONTHLY_CREDITS;
+  let monthlyUsed = 0;
+  let monthlyRemaining = ANON_MONTHLY_CREDITS;
 
   if (isDatabaseConfigured()) {
     try {
@@ -93,7 +100,7 @@ export async function POST(request: NextRequest) {
       if (session?.user?.id) {
         userId = session.user.id;
         isAdmin = !!session.user.isAdmin;
-        plan = session.user.plan || "free";
+        plan = (session.user.plan as Plan) || "free";
         const adminEmails = parseEmails(process.env.ADMIN_EMAILS);
         const paidEmails = parseEmails(process.env.PAID_EMAILS);
         const email = (session.user.email || "").toLowerCase();
@@ -106,23 +113,25 @@ export async function POST(request: NextRequest) {
           });
           if (dbUser) {
             if (dbUser.isAdmin) isAdmin = true;
-            if (dbUser.plan && dbUser.plan !== "free") plan = dbUser.plan;
+            if (dbUser.plan && dbUser.plan !== "free") plan = dbUser.plan as Plan;
           }
         } catch { /* keep */ }
 
         unlimited = isAdmin || plan === "business";
         showDetailed = isAdmin || plan !== "free";
-        dailyLimit = videoDailyLimit(plan, isAdmin, unlimited);
-        if (dailyLimit !== Infinity) {
-          const { prisma: p2 } = await import("@/lib/prisma");
-          const today = new Date(); today.setHours(0, 0, 0, 0);
-          const usage = await p2.videoUsageRecord.findUnique({
-            where: { userId_date: { userId, date: today } },
-          });
-          if ((usage?.count ?? 0) >= dailyLimit) {
-            return NextResponse.json({ error: t("errors.quotaExhausted") }, { status: 429 });
-          }
+        monthlyLimit = monthlyLimitFor(plan, isAdmin, unlimited);
+        const usage = await prisma.videoUsageRecord.findUnique({
+          where: { userId_date: { userId, date: firstOfMonth() } },
+        });
+        monthlyUsed = usage?.count ?? 0;
+        if (!hasCredits(monthlyUsed, monthlyLimit, VIDEO_COST)) {
+          return NextResponse.json({ error: t("errors.quotaExhausted") }, { status: 429 });
         }
+        monthlyRemaining =
+          monthlyLimit === Infinity ? -1 : Math.max(0, monthlyLimit - monthlyUsed);
+      } else {
+        // Anonymous cannot run videos (cost 8 > anon grant of 3).
+        return NextResponse.json({ error: t("errors.quotaExhausted") }, { status: 429 });
       }
     } catch (dbError) {
       console.error("[TrueLens Video] DB error during auth:", dbError);
@@ -193,8 +202,10 @@ export async function POST(request: NextRequest) {
           isAdmin,
           plan,
           showDetailed,
-          dailyLimit: dailyLimit === Infinity ? -1 : dailyLimit,
+          monthlyLimit: monthlyLimit === Infinity ? -1 : monthlyLimit,
+          monthlyUsed,
+          monthlyRemaining,
         }
-      : { authenticated: false, unlimited: false, isAdmin: false, plan: "free", showDetailed: false, dailyLimit: ANON_DAILY_LIMIT },
+      : { authenticated: false, unlimited: false, isAdmin: false, plan: "free", showDetailed: false, monthlyLimit: ANON_MONTHLY_CREDITS, monthlyRemaining: ANON_MONTHLY_CREDITS },
   });
 }

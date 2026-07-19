@@ -7,7 +7,7 @@
   "header": {
     "hideHistory": "Hide History",
     "showHistory": "History",
-    "quotaRemaining": "{quota} free checks left",
+    "quotaRemaining": "{quota} left this month",
     "quotaLoggedIn": "{quota} free checks left (signed in)",
     "quotaExhausted": "Quota used up",
     "loginForMore": "Sign in for more",
@@ -42,7 +42,7 @@
     "loginEncouragement": "Sign in for 5 free detections/day →",
     "loginEncouragementExhausted": "Sign in now for 5 free high-precision checks per month. Create a free account →",
     "fileName": "Filename",
-    "quotaInfo": "This will use your free quota ({quota} remaining)",
+    "quotaInfo": "Free high-precision left this month: {quota}",
     "quotaExhaustedBtn": "Monthly high-precision quota used — now using base model. Consider upgrading to Pro.",
     "detect": "Start Detection",
     "changeImage": "Change"
@@ -64,6 +64,7 @@
     "confidence": "Confidence {value}%",
     "aiProbability": "AI Likelihood",
     "aiProbabilityHint": "Higher value = more likely AI-generated",
+    "baseModelNotice": "Your free high-precision quota is used up — switched to base detection mode (zero-cost, results for reference only).",
     "prob_real": "Real Photo",
     "prob_ai": "AI-Generated",
     "evidenceTitle": "Detection Evidence",

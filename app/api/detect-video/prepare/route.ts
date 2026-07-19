@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { resolveVideoEngine } from "@/lib/video/engine";
+import {
+  monthlyLimitFor,
+  ANON_MONTHLY_CREDITS,
+  VIDEO_COST,
+  firstOfMonth,
+  hasCredits,
+  type Plan,
+} from "@/lib/quota";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,24 +26,26 @@ export const dynamic = "force-dynamic";
 //
 // Response shape:
 //   { configured: boolean, engine: "frames"|"sightengine", pathname?: string,
-//     auth: { authenticated, isAdmin, plan, showDetailed, dailyLimit } }
+//     auth: { authenticated, isAdmin, plan, showDetailed, monthlyLimit, monthlyRemaining } }
 export async function GET(request: NextRequest) {
   const token = process.env.BLOB_READ_WRITE_TOKEN;
 
   // Resolve user plan (if DB is configured) to pick the right engine.
   let isAdmin = false;
-  let plan = "free";
+  let plan: Plan = "free";
   let authenticated = false;
   let unlimited = false;
   let showDetailed = false;
-  let dailyLimit = 1;
+  let monthlyLimit = ANON_MONTHLY_CREDITS;
+  let monthlyUsed = 0;
+  let monthlyRemaining = ANON_MONTHLY_CREDITS;
   if (process.env.DATABASE_URL && !process.env.DATABASE_URL.includes("localhost:5432/truelens")) {
     try {
       const session = await auth();
       if (session?.user?.id) {
         authenticated = true;
         isAdmin = !!session.user.isAdmin;
-        plan = session.user.plan || "free";
+        plan = (session.user.plan as Plan) || "free";
 
         const adminEmails = (process.env.ADMIN_EMAILS || "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
         const paidEmails = (process.env.PAID_EMAILS || "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
@@ -51,16 +61,26 @@ export async function GET(request: NextRequest) {
           });
           if (dbUser) {
             if (dbUser.isAdmin) isAdmin = true;
-            if (dbUser.plan && dbUser.plan !== "free") plan = dbUser.plan;
+            if (dbUser.plan && dbUser.plan !== "free") plan = dbUser.plan as Plan;
           }
         } catch { /* keep */ }
 
         unlimited = isAdmin || plan === "business";
         showDetailed = isAdmin || plan !== "free";
-        // Map plan -> daily limit (matches quota.ts).
-        if (unlimited) dailyLimit = -1;
-        else if (plan === "pro") dailyLimit = 50;
-        else dailyLimit = 5;
+        monthlyLimit = monthlyLimitFor(plan, isAdmin, unlimited);
+
+        // Read this month's video-credit usage for an accurate remaining count.
+        try {
+          const { prisma } = await import("@/lib/prisma");
+          const usage = await prisma.videoUsageRecord.findUnique({
+            where: { userId_date: { userId: session.user.id, date: firstOfMonth() } },
+          });
+          monthlyUsed = usage?.count ?? 0;
+        } catch { /* keep */ }
+        monthlyRemaining =
+          monthlyLimit === Infinity
+            ? -1
+            : Math.max(0, monthlyLimit - monthlyUsed);
       }
     } catch { /* anonymous fallback */ }
   }
@@ -77,7 +97,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         configured: false,
         engine: "frames",
-        auth: { authenticated, isAdmin, plan, showDetailed, dailyLimit, unlimited },
+        auth: { authenticated, isAdmin, plan, showDetailed, monthlyLimit, monthlyRemaining, unlimited },
       });
     }
     const origName =
@@ -87,7 +107,7 @@ export async function GET(request: NextRequest) {
       configured: true,
       engine: "sightengine",
       pathname,
-      auth: { authenticated, isAdmin, plan, showDetailed, dailyLimit, unlimited },
+      auth: { authenticated, isAdmin, plan, showDetailed, monthlyLimit, monthlyRemaining, unlimited },
     });
   }
 
@@ -95,6 +115,6 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     configured: false,
     engine: "frames",
-    auth: { authenticated, isAdmin, plan, showDetailed, dailyLimit, unlimited },
+    auth: { authenticated, isAdmin, plan, showDetailed, monthlyLimit, monthlyRemaining, unlimited },
   });
 }
