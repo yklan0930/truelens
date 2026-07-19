@@ -185,7 +185,6 @@ export default function VideoDetection() {
           ref={fileInputRef}
           type="file"
           accept="video/*"
-          capture="environment"
           className="hidden"
           onChange={onInputChange}
         />
