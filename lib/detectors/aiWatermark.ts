@@ -114,7 +114,16 @@ export async function detectAIWatermark(
       best.details.regionBrightPixelRatio >= BRIGHT_MIN &&
       best.details.regionBrightPixelRatio <= BRIGHT_MAX;
 
-    if (best.score >= FOUND_THRESHOLD && gatesOk) {
+    // Position prior: production AI watermarks (Midjourney, DALL·E, 文心一格,
+    // 即梦, Vidu, 智谱, 海螺, …) are almost always stamped in a BOTTOM region
+    // (bottom-right / bottom-center / bottom-left). A text-like signal in a TOP
+    // corner is far more likely real signage / a real photo's text, so we do NOT
+    // treat top regions as a watermark. This removes false positives like a real
+    // street photo whose top-left white text tripped the heuristic, with zero
+    // cost to genuine bottom watermarks. Verified against tests/_wm_report_out.json.
+    const isBottomRegion = best.region.name.startsWith("bottom-");
+
+    if (best.score >= FOUND_THRESHOLD && gatesOk && isBottomRegion) {
       return {
         found: true,
         position: best.region.name,

@@ -8,6 +8,7 @@ import VideoDetection from "@/components/VideoDetection";
 import SocialShare from "@/components/SocialShare";
 import { generateShareCard, makeShareThumb, type ShareCardLabels } from "@/lib/shareCard";
 import { getBuildInfo } from "@/lib/version";
+import type { OcrWatermarkResult } from "@/lib/client/ocrWatermark";
 
 interface Evidence {
   source: string;
@@ -273,6 +274,7 @@ export default function Home() {
   const [fileName, setFileName] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<DetectionResult | null>(null);
+  const [ocrWatermark, setOcrWatermark] = useState<{ found: boolean; text: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [quota, setQuota] = useState(ANON_LIMIT); // reflects actual remaining detections
@@ -326,6 +328,7 @@ export default function Home() {
 
       setError(null);
       setResult(null);
+      setOcrWatermark(null);
       setFileName(file.name);
       setFeedbackState("none");
       fileRef.current = file;
@@ -348,6 +351,40 @@ export default function Home() {
     },
     [handleFile]
   );
+
+  // Local fallback verdict when Sightengine/API is unreachable but the
+  // browser-side OCR found an explicit AI-generation watermark. Avoids a hard
+  // error and still gives the user a trustworthy, evidence-backed answer.
+  const synthesizeLocalAiResult = (
+    watermarkText: string,
+    name: string,
+    size: number
+  ): DetectionResult => ({
+    aiProbability: 95,
+    verdict: "likely_ai",
+    confidence: 90,
+    evidence: [
+      {
+        source: t("result.aiWatermarkOcr"),
+        type: "ai",
+        label: t("result.aiWatermarkOcr"),
+        detail: t("result.aiWatermarkOcrDetail", { text: watermarkText }),
+      },
+    ],
+    signals: [
+      {
+        category: "format",
+        label: t("result.aiWatermarkOcr"),
+        detail: t("result.aiWatermarkOcrDetail", { text: watermarkText }),
+        lean: "ai",
+        score: 95,
+      },
+    ],
+    screenRephoto: false,
+    processingTimeMs: 0,
+    fileName: name,
+    fileSize: size,
+  });
 
   const handleDetect = async () => {
     if (!image) return;
@@ -408,6 +445,19 @@ export default function Home() {
       const formData = new FormData();
       formData.append("image", blob, fileName);
 
+      // Browser-side OCR watermark scan — runs in parallel with the API call.
+      // If Sightengine works it just enriches the report with literal watermark
+      // text; if the API is unreachable an explicit AI watermark found here
+      // becomes a local fallback verdict instead of a hard error.
+      const ocrPromise = (async () => {
+        try {
+          const { detectAiWatermarkOcr } = await import("@/lib/client/ocrWatermark");
+          return await detectAiWatermarkOcr(blob, 15000);
+        } catch {
+          return { found: false, text: "", raw: "" } as OcrWatermarkResult;
+        }
+      })();
+
       const res = await fetch("/api/detect", {
         method: "POST",
         body: formData,
@@ -434,9 +484,29 @@ export default function Home() {
       }
 
       if (!res.ok) {
+        // Resilience: API/Sightengine failed, but OCR found an explicit
+        // AI-generation watermark locally — surface a local likely_ai verdict.
+        const ocr = await ocrPromise;
+        if (ocr.found) {
+          setOcrWatermark({ found: true, text: ocr.text });
+          setResult(synthesizeLocalAiResult(ocr.text, fileName, fileRef.current?.size ?? blob.size));
+          setShowDetailed(true);
+          if (!isAuthenticated) {
+            incrementDailyCount();
+            setQuota(getRemainingAnonQuota());
+          }
+          setFeedbackState("none");
+          const el = document.getElementById("result-section");
+          if (el) {
+            setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "start" }), 200);
+          }
+          return;
+        }
         throw new Error(data.error || t("errors.detectFailed"));
       }
 
+      const ocr = await ocrPromise;
+      if (ocr.found) setOcrWatermark({ found: true, text: ocr.text });
       setResult(data.result);
 
       // Update entitlement + quota from server response (authoritative source)
@@ -497,6 +567,7 @@ export default function Home() {
   const handleReset = () => {
     setImage(null);
     setResult(null);
+    setOcrWatermark(null);
     setError(null);
     setFileName("");
     setFeedbackState("none");
@@ -1364,6 +1435,24 @@ export default function Home() {
                     <span className="font-medium">{t("result.prob_ai")}</span>
                   </div>
                 </div>
+
+                {/* AI-generation watermark (browser-side OCR) — supplementary
+                    evidence shown to ALL users: the literal watermark text is a
+                    strong, easy-to-trust signal. */}
+                {ocrWatermark?.found && (
+                  <div className="bg-red-50 border border-red-200 rounded-2xl p-5">
+                    <p className="text-sm text-red-800 flex items-start gap-2">
+                      <span className="text-base leading-none">🔎</span>
+                      <span>
+                        <strong className="font-semibold">{t("result.aiWatermarkOcr")}</strong>
+                        <br />
+                        <span className="text-red-700">
+                          {t("result.aiWatermarkOcrDetail", { text: ocrWatermark.text })}
+                        </span>
+                      </span>
+                    </p>
+                  </div>
+                )}
 
                 {/* Share */}
                 <div className="bg-white border border-slate-200 rounded-2xl p-5">

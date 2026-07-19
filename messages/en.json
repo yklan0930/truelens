@@ -69,7 +69,9 @@
     "fileSize": "File size: {size} KB",
     "processingTime": "Processing time: {s}s",
     "disclaimer": "TrueLens results are for reference only and do not constitute legal evidence. AI detection technology is still evolving and may produce errors.",
-    "screenTip": "⚠️ Possible screen re-photo: this image shows moiré / pixel-grid patterns typical of a photo taken of a screen. Such images are easily mis-flagged as AI. Upload the original screenshot file (not a camera photo of the screen) for a reliable result; the current verdict is for reference only."
+    "screenTip": "⚠️ Possible screen re-photo: this image shows moiré / pixel-grid patterns typical of a photo taken of a screen. Such images are easily mis-flagged as AI. Upload the original screenshot file (not a camera photo of the screen) for a reliable result; the current verdict is for reference only.",
+    "aiWatermarkOcr": "AI-generation watermark detected",
+    "aiWatermarkOcrDetail": "Clear AI-generation text was found on the image: \"{text}\". This is strong evidence the image was AI-generated."
   },
   "share": {
     "shareResult": "Share Result",
@@ -289,6 +291,8 @@
     "real_prob_label": "Real Photo Probability {value}%",
     "hf_model_detail": "ViT model {model} analysis, confidence {value}%",
     "source_vit": "ViT Deep Learning (Ateeqq)",
+    "source_sightengine_img": "Sightengine AI Image Detection",
+    "sightengine_detail": "Sightengine genai analysis, AI probability {value}%",
     "source_exif": "EXIF Metadata",
     "source_watermark": "Watermark OCR",
     "watermark_found": "Retouching-app watermark detected",
@@ -346,6 +350,8 @@
     "hfFormatError": "HF API returned unexpected format.",
     "hfMissingFields": "HF API response missing required fields.",
     "hfCallFailed": "HF API call failed.",
+    "sightengineError": "Sightengine detection failed: {error}",
+    "sightengineTimeout": "Sightengine timed out, please retry.",
     "invalidFeedbackType": "Invalid feedback type.",
     "feedbackFailed": "Failed to submit feedback."
   },
