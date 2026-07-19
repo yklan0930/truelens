@@ -20,12 +20,13 @@ export interface VideoResult {
   confidence: number; // 0-100
   summary: string; // human-readable one-liner
   evidence: VideoEvidenceItem[];
-  engine: string; // "sightengine" | "mock"
+  engine: string; // "sightengine" | "replicate" | "frames" | "mock"
   processingTimeMs: number;
   fileName?: string;
   fileSize?: number;
   durationSec?: number; // when the engine reports it
   framesAnalyzed?: number;
+  perFrameScores?: number[]; // for "frames" engine — AI prob per frame
 }
 
 export function verdictFromProbability(prob: number): VideoVerdict {

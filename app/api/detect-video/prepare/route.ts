@@ -1,25 +1,100 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
+import { resolveVideoEngine } from "@/lib/video/engine";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// GET /api/detect-video/prepare
+// GET /api/detect-video/prepare?name=...&size=...
 // Returns what the browser needs to upload the video OUTSIDE Vercel functions
-// (so we never hit the 4.5 MB body limit). Two modes:
-//  - Blob configured (BLOB_READ_WRITE_TOKEN set): returns a unique `pathname`.
-//    The client uploads directly to Vercel Blob via @vercel/blob/client `upload()`
-//    using our /api/blob-upload route (which mints a short-lived client token
-//    from the read-write token — the secret never reaches the browser).
-//  - Not configured: returns { configured:false }. In mock mode the client
-//    skips upload entirely; in sightengine mode this is a hard error (the
-//    engine needs a public URL to fetch the video from).
+// (so we never hit the 4.5 MB body limit), plus the engine preference for the
+// current user.
+//
+// Engines:
+//   - "sightengine": blob upload + Sightengine async path. Requires blob
+//     configured, Sightengine credentials, and a paid/admin user.
+//   - "frames": client-side frame extraction + free image API. Always
+//     available; the default for free users and when no paid engine is set up.
+//
+// Response shape:
+//   { configured: boolean, engine: "frames"|"sightengine", pathname?: string,
+//     auth: { authenticated, isAdmin, plan, showDetailed, dailyLimit } }
 export async function GET(request: NextRequest) {
   const token = process.env.BLOB_READ_WRITE_TOKEN;
-  if (!token) {
-    return NextResponse.json({ configured: false });
+
+  // Resolve user plan (if DB is configured) to pick the right engine.
+  let isAdmin = false;
+  let plan = "free";
+  let authenticated = false;
+  let unlimited = false;
+  let showDetailed = false;
+  let dailyLimit = 1;
+  if (process.env.DATABASE_URL && !process.env.DATABASE_URL.includes("localhost:5432/truelens")) {
+    try {
+      const session = await auth();
+      if (session?.user?.id) {
+        authenticated = true;
+        isAdmin = !!session.user.isAdmin;
+        plan = session.user.plan || "free";
+
+        const adminEmails = (process.env.ADMIN_EMAILS || "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+        const paidEmails = (process.env.PAID_EMAILS || "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+        const email = (session.user.email || "").toLowerCase();
+        if (email && adminEmails.includes(email)) isAdmin = true;
+        if (email && paidEmails.includes(email) && plan === "free") plan = "pro";
+
+        try {
+          const { prisma } = await import("@/lib/prisma");
+          const dbUser = await prisma.user.findUnique({
+            where: { id: session.user.id },
+            select: { isAdmin: true, plan: true },
+          });
+          if (dbUser) {
+            if (dbUser.isAdmin) isAdmin = true;
+            if (dbUser.plan && dbUser.plan !== "free") plan = dbUser.plan;
+          }
+        } catch { /* keep */ }
+
+        unlimited = isAdmin || plan === "business";
+        showDetailed = isAdmin || plan !== "free";
+        // Map plan -> daily limit (matches quota.ts).
+        if (unlimited) dailyLimit = -1;
+        else if (plan === "pro") dailyLimit = 50;
+        else dailyLimit = 5;
+      }
+    } catch { /* anonymous fallback */ }
   }
-  const origName =
-    (request.nextUrl.searchParams.get("name") || "video").replace(/[^a-zA-Z0-9._-]/g, "_");
-  const pathname = `videos/${Date.now()}-${origName}`;
-  return NextResponse.json({ configured: true, pathname });
+
+  const engine = resolveVideoEngine({
+    isAuthenticated: authenticated,
+    isAdmin,
+    plan,
+  });
+
+  if (engine === "sightengine") {
+    if (!token) {
+      // Paid engine chosen but no blob — fall back to frames.
+      return NextResponse.json({
+        configured: false,
+        engine: "frames",
+        auth: { authenticated, isAdmin, plan, showDetailed, dailyLimit, unlimited },
+      });
+    }
+    const origName =
+      (request.nextUrl.searchParams.get("name") || "video").replace(/[^a-zA-Z0-9._-]/g, "_");
+    const pathname = `videos/${Date.now()}-${origName}`;
+    return NextResponse.json({
+      configured: true,
+      engine: "sightengine",
+      pathname,
+      auth: { authenticated, isAdmin, plan, showDetailed, dailyLimit, unlimited },
+    });
+  }
+
+  // "frames" (default, free): no blob upload needed; client does extraction.
+  return NextResponse.json({
+    configured: false,
+    engine: "frames",
+    auth: { authenticated, isAdmin, plan, showDetailed, dailyLimit, unlimited },
+  });
 }

@@ -142,6 +142,7 @@
     "fileTooLarge": "Video file is too large (max 500MB)",
     "errorNoUpload": "Detection engine is enabled but upload storage (BLOB_READ_WRITE_TOKEN) is not configured; video cannot be processed yet",
     "errorNotVideo": "Please select a video file",
+    "errorNoFrames": "Could not extract frames from the video. Please try a different file.",
     "errorGeneric": "Detection failed, please retry",
     "errorSubmit": "Failed to submit detection job",
     "longNote": "Video analysis is async and may take 1–5 minutes; large files need patience",

@@ -142,6 +142,7 @@
     "fileTooLarge": "视频文件过大（上限 500MB）",
     "errorNoUpload": "已启用检测引擎但未配置上传存储（BLOB_READ_WRITE_TOKEN），暂无法处理视频",
     "errorNotVideo": "请选择视频文件",
+    "errorNoFrames": "无法从视频中抽取帧，请尝试其他视频文件",
     "errorGeneric": "检测失败，请重试",
     "errorSubmit": "提交检测任务失败",
     "longNote": "视频分析为异步过程，可能耗时 1–5 分钟；大文件请耐心等待",

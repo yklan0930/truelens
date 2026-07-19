@@ -70,17 +70,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: t("api.invalidJson") }, { status: 400 });
   }
 
-  const engine = resolveVideoEngine();
   const blobUrl = body.blobUrl || null;
   const fileName = body.fileName || "video";
   const fileSize = Number(body.fileSize) || 0;
 
   if (fileSize > MAX_FILE_SIZE) {
     return NextResponse.json({ error: t("video.fileTooLarge") }, { status: 413 });
-  }
-  // Sightengine path requires a public URL the engine can fetch.
-  if (engine === "sightengine" && !blobUrl) {
-    return NextResponse.json({ error: t("video.errorNoUpload") }, { status: 400 });
   }
 
   // --- Resolve auth + quota (mirrors image detect route) ---
@@ -132,6 +127,17 @@ export async function POST(request: NextRequest) {
     } catch (dbError) {
       console.error("[TrueLens Video] DB error during auth:", dbError);
     }
+  }
+
+  // Resolve engine NOW that we know the user's plan.
+  const engine = resolveVideoEngine({
+    isAuthenticated: !!userId,
+    isAdmin,
+    plan,
+  });
+  // Sightengine path requires a public URL the engine can fetch.
+  if (engine === "sightengine" && !blobUrl) {
+    return NextResponse.json({ error: t("video.errorNoUpload") }, { status: 400 });
   }
 
   // --- Persist the job ---

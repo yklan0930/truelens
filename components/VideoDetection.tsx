@@ -5,11 +5,13 @@ import { useT } from "@/lib/i18n/context";
 import { upload } from "@vercel/blob/client";
 import VideoResultCard from "./VideoResultCard";
 import type { VideoResult } from "@/lib/video/types";
+import { extractFramesFromVideo } from "@/lib/video/extractFrames";
 
 type Status = "idle" | "uploading" | "analyzing" | "done" | "failed";
 
 const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500 MB
 const POLL_INTERVAL = 2500;
+const FRAME_COUNT = 8;
 
 export default function VideoDetection() {
   const t = useT();
@@ -97,12 +99,42 @@ export default function VideoDetection() {
       setStatus("uploading");
 
       try {
-        // 1. Ask the server how to upload (Vercel Blob target, or mock mode).
+        // 1. Ask the server which engine + how to upload.
         const prepareRes = await fetch(
-          `/api/detect-video/prepare?name=${encodeURIComponent(file.name)}`
+          `/api/detect-video/prepare?name=${encodeURIComponent(file.name)}&size=${file.size}`
         );
         const prepare = await prepareRes.json();
 
+        // Engine "frames" (default, free): extract frames client-side and POST
+        // them to /api/detect-video/process — no blob upload, no Sightengine.
+        if (prepare.engine === "frames" || !prepare.configured) {
+          setStatus("analyzing");
+          const frames = await extractFramesFromVideo(file, FRAME_COUNT);
+          if (frames.length === 0) {
+            throw new Error(t("video.errorNoFrames"));
+          }
+          const fd = new FormData();
+          for (const fr of frames) {
+            fd.append("frame", fr.blob, `frame_${fr.index}.jpg`);
+          }
+          fd.append("fileName", file.name);
+
+          const res = await fetch("/api/detect-video/process", {
+            method: "POST",
+            body: fd,
+          });
+          const data = await res.json();
+          if (!res.ok || !data.success) {
+            throw new Error(data.error || t("video.errorSubmit"));
+          }
+          setEngine(data.engine);
+          setResult(data.result as VideoResult);
+          setStatus("done");
+          return;
+        }
+
+        // Engine "sightengine" (paid, requires Sightengine + blob + paid user):
+        // upload to blob, submit to /api/detect-video, poll for webhook result.
         let blobUrl: string | null = null;
         if (prepare.configured) {
           const blob = await upload(prepare.pathname, file, {
