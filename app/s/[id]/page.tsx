@@ -96,8 +96,12 @@ export default function SharedResultPage() {
         showToast(t("share.copyImageSuccess"));
         return;
       }
+      // Clipboard API not supported
+      showToast(t("share.copyImageFallback"));
+      return;
     } catch {
-      /* fall through */
+      // Permission denied or failed
+      showToast(t("share.copyImageFailed"));
     }
     await download();
     showToast(t("share.savedImage"));
@@ -184,10 +188,11 @@ export default function SharedResultPage() {
               <ul className="space-y-2 mb-4">
                 {payload.result.evidence.slice(0, 3).map((ev, i) => {
                   const icon = ev.type === "real" ? "✅" : ev.type === "ai" ? "⚠️" : "📋";
+                  const label = ev.label.replace(/\{[^}]+\}|\[[^\]]+\]/g, "—");
                   return (
                     <li key={i} className="text-sm text-slate-700 flex items-start gap-2">
                       <span>{icon}</span>
-                      <span>{ev.label}</span>
+                      <span>{label}</span>
                     </li>
                   );
                 })}

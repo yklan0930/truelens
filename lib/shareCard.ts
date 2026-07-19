@@ -211,7 +211,8 @@ export async function generateShareCard(opts: {
     result.evidence.slice(0, 3).forEach((ev) => {
       const icon = ev.type === "real" ? "✅" : ev.type === "ai" ? "⚠️" : "📋";
       ctx.fillStyle = "#334155";
-      ctx.fillText(`${icon} ${ev.label}`, 32, y + 16);
+      const label = ev.label.replace(/\{[^}]+\}|\[[^\]]+\]/g, "—");
+      ctx.fillText(`${icon} ${label}`, 32, y + 16);
       y += 28;
     });
   }

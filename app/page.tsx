@@ -37,6 +37,11 @@ interface DetectionResult {
   fileSize: number;
 }
 
+/** Strip any leftover template placeholders like {value} or [value] from evidence text */
+function cleanLabel(text: string): string {
+  return text.replace(/\{[^}]+\}|\[[^\]]+\]/g, "—");
+}
+
 // --- Challenge data ---
 interface ChallengePair {
   id: string;
@@ -650,8 +655,12 @@ export default function Home() {
         showToast(t("share.copyImageSuccess"));
         return;
       }
+      // Clipboard API not supported — inform user
+      showToast(t("share.copyImageFallback"));
+      return;
     } catch {
-      // fall through to download
+      // Permission denied or failed — inform user
+      showToast(t("share.copyImageFailed"));
     }
     await downloadCard(data);
     showToast(t("share.savedImage"));
@@ -1560,7 +1569,7 @@ export default function Home() {
 
                 {/* Evidence / Professional Report (gated by membership) */}
                 {showDetailed ? (
-                  <div className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6">
+                  <div className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6 pb-8">
                     <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
                       <h3 className="font-bold text-slate-900 flex items-center gap-2">
                         <span>🔍</span> {t("result.evidenceTitle")}
@@ -1578,14 +1587,14 @@ export default function Home() {
                       {(result.signals && result.signals.length > 0
                         ? result.signals.map((s) => ({
                             type: s.lean,
-                            label: s.label,
-                            detail: s.detail,
+                            label: cleanLabel(s.label),
+                            detail: cleanLabel(s.detail),
                             extra: s.score != null ? `${s.score}%` : "",
                           }))
                         : result.evidence.map((ev) => ({
                             type: ev.type,
-                            label: ev.label,
-                            detail: ev.detail,
+                            label: cleanLabel(ev.label),
+                            detail: cleanLabel(ev.detail),
                             extra: ev.source,
                           }))
                       ).map((item, i) => (

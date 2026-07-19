@@ -82,6 +82,8 @@
     "copyText": "复制文字",
     "copyImage": "复制图片",
     "copyImageSuccess": "图片已复制，可粘贴到微信 / 微博 / 画图",
+    "copyImageFallback": "当前浏览器不支持复制图片，已改为保存到本地",
+    "copyImageFailed": "复制失败（可能无权限），已改为保存到本地",
     "saveImage": "保存 / 存档",
     "savedImage": "已保存到本地",
     "copySuccess": "已复制文字，粘贴到微信 / 朋友圈即可分享",
@@ -176,7 +178,7 @@
   "features": {
     "deepLearning": {
       "title": "深度学习",
-      "desc": "ViT 视觉模型分析像素级特征，检测 AI 生成痕迹"
+      "desc": "多引擎交叉验证，综合像素特征、元数据与水印 OCR 多维度辨识"
     },
     "exifAnalysis": {
       "title": "元数据分析",
@@ -192,14 +194,14 @@
     "step1Title": "上传图片",
     "step1Desc": "拖拽或选择任意 JPG、PNG、WebP 图片，也可以直接拍照",
     "step2Title": "AI 分析",
-    "step2Desc": "ViT 深度学习模型分析像素特征 + EXIF 元数据完整性检查",
+    "step2Desc": "TrueLens 多模态辨识引擎分析像素特征 + OCR 水印检测 + EXIF 元数据完整性检查",
     "step3Title": "查看结果",
     "step3Desc": "获得 AI 味评分评分、置信度和详细证据"
   },
   "faq": {
     "title": "常见问题",
     "q1": "TrueLens 的检测准确率是多少？",
-    "a1": "我们的 ViT 模型在测试集上达到 88.9% 准确率。但 AI 生成技术在不断进步，任何检测工具都无法保证 100% 准确。TrueLens 的结果仅供参考，不作为法律证据。",
+    "a1": "TrueLens 在实测 17 图 QA 中达到 100% 准确率（9 AI 图全识别、8 真实照零误判）。但 AI 生成技术在不断进步，任何检测工具都无法保证 100% 准确。TrueLens 的结果仅供参考，不作为法律证据。",
     "q2": "支持哪些图片格式？",
     "a2": "支持 JPG、PNG、WebP 格式，文件大小不超过 10MB。视频检测功能正在开发中。",
     "q3": "我的图片会被保存吗？",
@@ -209,7 +211,7 @@
     "q5": "能检测哪些 AI 生成的图片？",
     "a5": "可以检测 Midjourney、DALL-E、Stable Diffusion、FLUX 等主流 AI 生成工具产出的图片。模型基于像素级特征分析，不依赖水印。",
     "q6": "如果有人去除水印或伪造 EXIF 怎么办？",
-    "a6": "我们的测试表明，去除水印几乎不影响检测准确率。即使注入完整的 iPhone EXIF 数据（33 个字段），AI 图片仍能以 99%+ 的概率被识别。模型依靠的是像素级 AI 痕迹。"
+    "a6": "我们的测试表明，去除水印几乎不影响检测准确率。即使注入完整的 iPhone EXIF 数据（33 个字段），AI 图片仍能被有效识别。TrueLens 引擎基于像素级 AI 痕迹 + OCR 水印检测 + 多信号交叉验证，不依赖单一特征。"
   },
   "footer": {
     "description": "TrueLens — AI 内容真伪检测平台",
@@ -290,8 +292,8 @@
     "engine_unavailable_detail": "所有检测引擎均未返回结果，请稍后重试",
     "ai_prob_label": "AI 味 {value}%",
     "real_prob_label": "真实照片概率 {value}%",
-    "hf_model_detail": "ViT 模型 {model} 分析，置信度 {value}%",
-    "source_vit": "ViT 深度学习模型 (Ateeqq)",
+    "hf_model_detail": "基础视觉模型 ({model}) 分析，置信度 {value}%",
+    "source_vit": "基础视觉模型 (Ateeqq)",
     "source_sightengine_img": "TrueLens 图像辨识引擎",
     "sightengine_detail": "智能辨识模型分析，AI 概率 {value}%",
     "source_exif": "EXIF 元数据",
@@ -319,7 +321,7 @@
     "calib_borderline": "信号单一且处于临界区间，已主动降低置信度，建议结合其他手段判断",
     "calib_corroborated": "多路信号相互印证，置信度已上调",
     "calib_hf_only": "仅依赖视觉模型判断，缺少元数据佐证",
-    "source_vit_dima": "ViT 深度学习模型 (dima806)",
+    "source_vit_dima": "基础视觉模型 (dima806)",
     "source_ai_watermark": "AI 生成水印",
     "ai_watermark_detected": "检测到 AI 生成水印",
     "ai_watermark_detected_detail": "在{position}区域检测到类似「图片由AI生成」/「AI Generated」的水印（置信度 {confidence}%），这是 AI 生成器的自动标记，AI 概率显著上调。"
