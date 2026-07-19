@@ -93,10 +93,28 @@ export async function detectAIWatermark(
 
     // Threshold: a typical AI watermark scores around 0.15-0.30 on this metric.
     // Real photos without text in the corner score 0.02-0.08. Threshold 0.12.
-    const FOUND_THRESHOLD = 0.12;
-    const STRONG_THRESHOLD = 0.20;
+    const FOUND_THRESHOLD = 0.15;
+    const STRONG_THRESHOLD = 0.22;
 
-    if (best.score >= FOUND_THRESHOLD) {
+    // --- Hard gates to suppress false positives ---
+    // A genuine AI watermark is SMALL TEXT (e.g. "图片由AI生成"), so it MUST
+    // show (a) real edge density (text strokes = many sharp horizontal edges)
+    // and (b) genuine text-like runs. Bright blobs (white clothing, sky, a
+    // light wall) have near-zero edge density and must NOT count. We also cap
+    // the bright-pixel ratio: a watermark covers only a few % of the region,
+    // not 30-40% of it.
+    const EDGE_GATE = 0.04; // genuine text has many edges; bright blobs ~0
+    const TEXT_GATE = 0.2; // genuine text has many character-runs
+    const BRIGHT_MIN = 0.01; // watermark is small text, not a dark region
+    const BRIGHT_MAX = 0.18; // ...and not a giant bright blob either
+
+    const gatesOk =
+      best.details.regionEdgeDensity > EDGE_GATE &&
+      best.details.regionTextDensity > TEXT_GATE &&
+      best.details.regionBrightPixelRatio >= BRIGHT_MIN &&
+      best.details.regionBrightPixelRatio <= BRIGHT_MAX;
+
+    if (best.score >= FOUND_THRESHOLD && gatesOk) {
       return {
         found: true,
         position: best.region.name,

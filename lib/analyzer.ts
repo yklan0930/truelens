@@ -21,7 +21,6 @@ import { detectWithHuggingFace, HFDetectionResult } from "./detectors/huggingfac
 import { analyzeExif, ExifResult, type SignalLean } from "./detectors/exif";
 import { detectWatermark, type WatermarkResult } from "./detectors/watermark";
 import { detectAIWatermark, type AIWatermarkResult } from "./detectors/aiWatermark";
-import { analyzeFaceSkin, type FaceSkinResult } from "./detectors/skin";
 import { analyzeTexture, type TextureResult } from "./detectors/texture";
 import { analyzeScreen, type ScreenResult } from "./detectors/screen";
 import { serverT, type ServerLocale } from "@/lib/i18n/server";
@@ -36,7 +35,6 @@ export interface DetectionResult {
     exif?: ExifResult;
     watermark?: WatermarkResult;
     aiWatermark?: AIWatermarkResult;
-    face?: FaceSkinResult;
     texture?: TextureResult;
     screen?: ScreenResult;
   };
@@ -300,111 +298,36 @@ export async function analyzeImage(
   // created a blind spot where real photos falsely scored 95–99% AI because
   // NO anti-FP detector was allowed to run. We now always check when the visual
   // model is AI-suspicious (aiProb > 0.5), regardless of how confident it is.
-  let face: FaceSkinResult | null = null;
-  if (aiProb > 0.5) {
-    try {
-      face = await analyzeFaceSkin(imageBuffer);
-    } catch {
-      face = null;
-    }
-  }
-  if (face?.signal) {
-    engines.face = face;
-    const beautified = face.signal === "real_retouched";
+  // v3.5: face/skin-based score compression is DISABLED. The pure-JS skin
+  // detector fires on ANY image with skin-toned pixels (sand, rocks, food) —
+  // at every isSkin threshold it reports faceFound=true for 16/17 test images.
+  // It cannot separate a real face from scenery, and cannot separate a real
+  // face from an AI face (Ateeqq scores both ~100%). So it provided no reliable
+  // signal and only squashed catchable AI. A trustworthy face check needs a
+  // real ML detector (blocked on Vercel WASM) or a stronger vision model.
+  // (Face/skin analysis intentionally not run — see note above.)
 
-    // Portrait Prior (v3.4): A detected human face is STRONG Bayesian evidence
-    // that the image is a real photograph, because current AI image generators
-    // still produce faces with subtly wrong anatomy/texture that the ViT
-    // model sometimes over-interprets as AI artifacts. When coverage is high
-    // enough (> 30%), we apply an immediate prior deduction BEFORE the
-    // compression factor — this is a two-stage defense.
-    const highCoveragePortrait = face.skinCoverage > 0.30;
-    if (highCoveragePortrait && aiProb > 0.65) {
-      // Pull down by up to 20 percentage points for clear portraits at
-      // extreme ViT scores. This corrects the model's systematic bias
-      // against human faces without affecting non-portrait images.
-      const priorDeduction = Math.min(0.20, (aiProb - 0.5) * 0.35);
-      aiProb = aiProb - priorDeduction;
-    }
-
-    // Compression factor (lower = stronger pull toward "uncertain"):
-    //   0.35 — portrait with smoothed skin (beauty filter / retouching) [was 0.50]
-    //   0.55 — portrait with natural skin texture (real photo)          [was 0.70]
-    // Increased strength (v3.4): the previous factors were too weak for
-    // extreme ViT false positives (95–99% on real portraits). Testing
-    // showed that even 0.5x compression left real portraits at ~73% AI,
-    // still above the 65% "likely_ai" threshold. The new values push clear
-    // portraits well into "uncertain" territory.
-    const compression = beautified ? 0.35 : 0.55;
-    aiProb = 0.5 + (aiProb - 0.5) * compression;
-    evidence.push({
-      source: t("evidence.source_face"),
-      type: "real",
-      label: beautified ? t("evidence.skin_beautified") : t("evidence.face_detected"),
-      detail: beautified
-        ? t("evidence.skin_beautified_detail", {
-            coverage: Math.round(face.skinCoverage * 100),
-          })
-        : t("evidence.face_detected_detail", {
-            coverage: Math.round(face.skinCoverage * 100),
-          }),
-    });
-    signals.push({
-      category: "exif",
-      label: beautified ? t("evidence.skin_beautified") : t("evidence.face_detected"),
-      detail: beautified
-        ? t("evidence.skin_beautified_detail", {
-            coverage: Math.round(face.skinCoverage * 100),
-          })
-        : t("evidence.face_detected_detail", {
-            coverage: Math.round(face.skinCoverage * 100),
-          }),
-      lean: "real",
-      score: face.score,
-    });
-  }
-
-  // --- Natural-photo texture / noise fingerprint (best-effort, non-portrait) ---
-  // Real camera/phone photos carry sensor-noise + JPEG fingerprints that
-  // diffusion-AI images generally lack. This catches retouched / HDR /
-  // colour-graded NON-portrait real photos that have no face, watermark, or
-  // EXIF cue.
-  // IMPORTANT: removed the < 0.95 upper gate (same blind-spot fix as face).
-  // This detector now runs whenever aiProb > 0.5 and no face was detected.
+  // --- Natural-photo texture / noise fingerprint (diagnostics only) ---
+  // NOTE (v3.5): Empirical QA across the full test set showed that
+  // heteroscedasticity — the metric this detector leans on — is NON-
+  // discriminative. It is HIGH on both AI images (ai-food 85%, ai-mountain-
+  // thumb 63%, ai-portrait 56%) AND real images (real-street 52%, real-food
+  // 35%). The old "real" compression therefore HURT AI detection (squashing
+  // catchable ai-food / ai-mountain-thumb toward "uncertain") while giving no
+  // reliable real-photo protection — non-face reals were never accused anyway,
+  // because Ateeqq already returns them ~50% (borderline) rather than 100%.
+  // We keep the measurement in `engines.texture` for transparency but NO LONGER
+  // let it move the score. A trustworthy AI/real discriminator for non-face
+  // images requires a stronger vision model (see roadmap: paid/Sightengine).
   let texture: TextureResult | null = null;
-  if (!face?.signal && aiProb > 0.5) {
+  if (aiProb > 0.5) {
     try {
       texture = await analyzeTexture(imageBuffer);
     } catch {
       texture = null;
     }
   }
-  if (texture?.signal === "real") {
-    engines.texture = texture;
-    // Stronger compression (v3.4): was 0.7, now 0.55. Real camera sensor-noise
-    // fingerprints are genuine evidence; even at extreme ViT scores they should
-    // pull the result toward "uncertain".
-    aiProb = 0.5 + (aiProb - 0.5) * 0.55;
-    evidence.push({
-      source: t("evidence.source_texture"),
-      type: "real",
-      label: t("evidence.texture_natural"),
-      detail: t("evidence.texture_natural_detail", {
-        noise: (texture.noiseLevel * 10).toFixed(1),
-        blocking: Math.round(texture.jpegBlocking * 100),
-      }),
-    });
-    signals.push({
-      category: "format",
-      label: t("evidence.texture_natural"),
-      detail: t("evidence.texture_natural_detail", {
-        noise: (texture.noiseLevel * 10).toFixed(1),
-        blocking: Math.round(texture.jpegBlocking * 100),
-      }),
-      lean: "real",
-      score: texture.score,
-    });
-  }
+  if (texture) engines.texture = texture;
 
   // --- AI generation watermark (e.g. "图片由AI生成", "AI Generated") ---
   // Strong signal: most major AI image generators stamp a watermark on their
@@ -419,8 +342,10 @@ export async function analyzeImage(
   }
   if (aiWatermark?.found) {
     engines.aiWatermark = aiWatermark;
-    // Strong boost: 0.30 nudge toward AI, capped at 0.97 to leave room.
-    aiProb = clamp(0.5 + (aiProb - 0.5) * 0.6 + 0.30, 0.01, 0.97);
+    // Moderate boost: 0.20 nudge toward AI (was 0.30). Kept conservative
+    // because false-positive watermarks were previously pushing real photos
+    // (Ateeqq 0%, or face-compressed 61%) back up to 51-87%.
+    aiProb = clamp(0.5 + (aiProb - 0.5) * 0.7 + 0.20, 0.01, 0.97);
     evidence.push({
       source: t("evidence.source_ai_watermark"),
       type: "ai",
@@ -512,30 +437,25 @@ export async function analyzeImage(
     confidence = Math.min(confidence, 60);
   }
 
-  // --- Verdict ---
+  // --- Verdict (v3.5, real-safe policy) ---
+  // The free HF vision model (Ateeqq) is near-binary and confidently wrong on
+  // roughly half of real photos (it returns ~100% "AI" for genuine portraits,
+  // pets, and group shots). With our second model (dima806) dead on the free
+  // endpoint and no reliable local face detector, we CANNOT separate an AI
+  // face/portrait from a real one. Falsely accusing a user's real photo is the
+  // worse failure (it directly harms them), so we adopt a conservative,
+  // real-safe policy:
+  //   - A real photo is only ever "likely_ai" if there is a DEFINITIVE,
+  //     independent AI signal (an actual AI-generation watermark).
+  //   - Otherwise a borderline/high score is reported as "uncertain" — honest
+  //     abstention rather than a false verdict.
+  // This protects real photos (the user's stated priority) at the cost of AI
+  // recall; restoring AI detection requires a stronger/paid model (roadmap).
   let verdict: DetectionResult["verdict"];
   const aiPercent = aiPercentRaw;
-  // When a retouching / social-export signal is present, the visual model's
-  // "likely AI" verdict is less reliable. We raise the threshold to be more
-  // conservative — these cases often fall into "uncertain" and prompt the user
-  // to consider the image as a retouched real photo rather than AI-generated.
-  const watermarkSignal = !!watermark?.found;
-  const faceDetected = !!face?.signal;
-  const faceBeautified = face?.signal === "real_retouched";
-  const textureNatural = texture?.signal === "real";
-  const retouchingSignal =
-    (hasRetouchingSignal ||
-      hasBeautySoftwareSignal ||
-      watermarkSignal ||
-      faceBeautified ||
-      textureNatural) &&
-    aiPercent < 95;
-  // A detected portrait or natural-photo fingerprint makes the "likely AI"
-  // verdict less reliable, so we raise the bar to 75 — these cases more often
-  // fall into "uncertain".
-  const aiThreshold = retouchingSignal || faceDetected || textureNatural ? 75 : 65;
   const realThreshold = 35;
-  if (aiPercent >= aiThreshold) {
+  const aiConfirmed = !!aiWatermark?.found && aiPercent >= 60;
+  if (aiConfirmed) {
     verdict = "likely_ai";
   } else if (aiPercent <= realThreshold) {
     verdict = "likely_real";
