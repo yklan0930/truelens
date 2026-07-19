@@ -28,22 +28,14 @@ export default async function OGImage() {
             marginBottom: "30px",
           }}
         >
-          <div
-            style={{
-              width: "80px",
-              height: "80px",
-              borderRadius: "20px",
-              background: "white",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "48px",
-              fontWeight: 700,
-              color: "#4f46e5",
-            }}
-          >
-            T
-          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="https://truelens.top/logo-icon.png"
+            width={80}
+            height={80}
+            style={{ borderRadius: "20px" }}
+            alt="TrueLens"
+          />
           <div style={{ color: "white", fontSize: "44px", fontWeight: 700 }}>
             TrueLens
           </div>

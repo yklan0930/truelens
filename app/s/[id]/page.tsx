@@ -110,7 +110,8 @@ export default function SharedResultPage() {
           href="/"
           className="inline-flex items-center gap-2 text-indigo-600 font-medium mb-6 hover:underline"
         >
-          <span>🔍</span> TrueLens
+          <img src="/logo-icon.png" alt="TrueLens" width={24} height={24} className="w-6 h-6" />
+          TrueLens
         </Link>
 
         {status === "loading" && (
