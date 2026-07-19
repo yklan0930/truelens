@@ -31,12 +31,12 @@ tests/
 
 **线上模式**（调 truelens.top API，测试已部署的版本）：
 ```
-node tests/run.js
+node tests/run.mjs
 ```
 
 **本地模式**（需要先启动本地服务）：
 ```
-API_URL=http://localhost:3000 node tests/run.js
+API_URL=http://localhost:3000 node tests/run.mjs
 ```
 
 **结果**：
