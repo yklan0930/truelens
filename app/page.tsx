@@ -7,6 +7,7 @@ import HeaderAuth from "@/components/auth/HeaderAuth";
 import VideoDetection from "@/components/VideoDetection";
 import SocialShare from "@/components/SocialShare";
 import { generateShareCard, makeShareThumb, type ShareCardLabels } from "@/lib/shareCard";
+import { getBuildInfo } from "@/lib/version";
 
 interface Evidence {
   source: string;
@@ -1657,6 +1658,16 @@ export default function Home() {
         <div className="max-w-4xl mx-auto px-4 py-6 text-center text-sm text-slate-400 space-y-2">
           <p>{t("footer.description")}</p>
           <p>{t("footer.copyright")}</p>
+          <p
+            className="text-xs text-slate-300 font-mono"
+            title={
+              getBuildInfo().sha
+                ? `Build ${getBuildInfo().version} · ${getBuildInfo().sha}`
+                : `Build ${getBuildInfo().version}`
+            }
+          >
+            {getBuildInfo().buildLabel}
+          </p>
           <div className="flex items-center justify-center gap-4 mt-1">
             <a
               href="https://github.com/yklan0930/truelens"

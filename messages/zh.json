@@ -15,7 +15,7 @@
   },
   "hero": {
     "title": "这张图片是真人拍的，还是 AI 生成的？",
-    "description": "上传图片，TrueLens 用深度学习模型 + 元数据分析给出 AI 生成概率和证据。准确率 88.9%，秒级出结果。"
+    "description": "上传图片，TrueLens 用深度学习模型 + 元数据分析给出 AI 味评分和证据。准确率 88.9%，秒级出结果。"
   },
   "challenge": {
     "title": "你能分辨哪张是经过 AI 处理的吗？",
@@ -62,7 +62,8 @@
     "verdict_real_share": "📸 可能是真实照片",
     "verdict_uncertain_share": "❓ 无法确定",
     "confidence": "置信度 {value}%",
-    "aiProbability": "AI 生成概率",
+    "aiProbability": "AI 味",
+    "aiProbabilityHint": "数值越大越像 AI 生成",
     "prob_real": "真实照片",
     "prob_ai": "AI 生成",
     "evidenceTitle": "检测证据",
@@ -85,11 +86,11 @@
     "wechatHint": "手机端点「分享图片」可直接选微信 / 微博；电脑端用下方社交按钮或「复制图片」后粘贴",
     "noImage": "原图不可用",
     "title": "TrueLens AI 检测结果",
-    "textTemplate": "{aiProbability}% AI 生成概率 — {verdict}",
-    "copyTemplate": "🔍 我刚用 TrueLens 测出这张图 AI 概率 {aiProbability}%（{verdict}）\n🕵 免费测你的图片真伪：https://truelens.top",
-    "copyTemplateLink": "🔍 我刚用 TrueLens 测出这张图 AI 概率 {aiProbability}%（{verdict}）\n📊 查看完整结果：{link}\n🕵 免费测你的图片：https://truelens.top",
+    "textTemplate": "{aiProbability}% AI 味 — {verdict}",
+    "copyTemplate": "🔍 我刚用 TrueLens 测出这张图 AI 味 {aiProbability}%（{verdict}）\n🕵 免费测你的图片真伪：https://truelens.top",
+    "copyTemplateLink": "🔍 我刚用 TrueLens 测出这张图 AI 味 {aiProbability}%（{verdict}）\n📊 查看完整结果：{link}\n🕵 免费测你的图片：https://truelens.top",
     "cardTitle": "🔍 TrueLens",
-    "cardAiProb": "AI 生成概率",
+    "cardAiProb": "AI 味",
     "cardConfidence": "置信度 {confidence}% · 耗时 {s} 秒",
     "cardFooter": "truelens.top · AI 内容真伪检测",
     "cardCta": "🔓 免费查看完整证据报告",
@@ -126,7 +127,7 @@
     "verdict_ai": "🤖 可能是 AI 生成视频",
     "verdict_real": "📸 可能是真实视频",
     "verdict_uncertain": "❓ 无法确定",
-    "aiProb": "AI 生成概率",
+    "aiProb": "AI 味",
     "confidence": "置信度 {confidence}%",
     "paywallTitle": "完整证据报告为 Pro / Business 专属",
     "paywallDesc": "升级后可查看逐帧分析、生成引擎线索等详细证据。",
@@ -191,7 +192,7 @@
     "step2Title": "AI 分析",
     "step2Desc": "ViT 深度学习模型分析像素特征 + EXIF 元数据完整性检查",
     "step3Title": "查看结果",
-    "step3Desc": "获得 AI 生成概率评分、置信度和详细证据"
+    "step3Desc": "获得 AI 味评分评分、置信度和详细证据"
   },
   "faq": {
     "title": "常见问题",
@@ -281,25 +282,25 @@
     "filename_beauty_app": "美颜/修图 App 文件名",
     "filename_beauty_app_detail": "文件名包含 {name} 相关标识，倾向为真实照片经过美颜处理",
     "retouching_hint": "可能经过美颜/修图",
-    "retouching_hint_detail": "检测到美颜、滤镜或社交 App 压缩痕迹，视觉模型容易与 AI 生成混淆，已降低 AI 概率",
+    "retouching_hint_detail": "检测到美颜、滤镜或社交 App 压缩痕迹，视觉模型容易与 AI 生成混淆，已降低 AI 味",
     "engine_unavailable": "检测引擎暂时不可用",
     "engine_unavailable_detail": "所有检测引擎均未返回结果，请稍后重试",
-    "ai_prob_label": "AI 生成概率 {value}%",
+    "ai_prob_label": "AI 味 {value}%",
     "real_prob_label": "真实照片概率 {value}%",
-    "hf_model_detail": "SigLIP2 模型分析，置信度 {value}%",
-    "source_vit": "ViT 深度学习模型",
+    "hf_model_detail": "ViT 模型 {model} 分析，置信度 {value}%",
+    "source_vit": "ViT 深度学习模型 (Ateeqq)",
     "source_exif": "EXIF 元数据",
     "source_watermark": "水印识别 (OCR)",
     "watermark_found": "检测到修图 App 水印",
-    "watermark_found_detail": "图片含「{app}」水印，通常是真实照片经美颜/修图后导出的痕迹，已大幅降低 AI 概率",
+    "watermark_found_detail": "图片含「{app}」水印，通常是真实照片经美颜/修图后导出的痕迹，已大幅降低 AI 味",
     "source_face": "人像 / 皮肤分析",
     "face_detected": "检测到人像",
-    "face_detected_detail": "图像包含清晰的人脸皮肤区域（覆盖率 {coverage}%），表明这是一张真实拍摄的照片，已降低 AI 概率",
+    "face_detected_detail": "图像包含清晰的人脸皮肤区域（覆盖率 {coverage}%），表明这是一张真实拍摄的照片，已降低 AI 味",
     "skin_beautified": "皮肤高度平滑（疑似美颜/磨皮）",
-    "skin_beautified_detail": "人脸区域皮肤纹理缺失、高度平滑（覆盖率 {coverage}%），符合美颜/修图 App 的处理特征，已大幅降低 AI 概率",
+    "skin_beautified_detail": "人脸区域皮肤纹理缺失、高度平滑（覆盖率 {coverage}%），符合美颜/修图 App 的处理特征，已大幅降低 AI 味",
     "source_texture": "自然照片纹理分析",
     "texture_natural": "检测到真实相机/手机照片的指纹特征",
-    "texture_natural_detail": "图像呈现真实相机/手机照片的传感器噪声与 JPEG 压缩块效应（噪声 {noise}，块效应 {blocking}%），符合真实拍摄或后期处理的照片，已降低 AI 概率",
+    "texture_natural_detail": "图像呈现真实相机/手机照片的传感器噪声与 JPEG 压缩块效应（噪声 {noise}，块效应 {blocking}%），符合真实拍摄或后期处理的照片，已降低 AI 味",
     "source_screen": "屏幕翻拍分析",
     "screen_detected": "疑似屏幕翻拍",
     "screen_detected_detail": "图像呈现摩尔纹、像素网格等屏幕翻拍特征。这类图（手机拍屏幕/截图）常被误判为 AI，当前结果仅供参考，建议结合上下文判断",
@@ -312,7 +313,8 @@
     "calibration_title": "置信度校准",
     "calib_borderline": "信号单一且处于临界区间，已主动降低置信度，建议结合其他手段判断",
     "calib_corroborated": "多路信号相互印证，置信度已上调",
-    "calib_hf_only": "仅依赖视觉模型判断，缺少元数据佐证"
+    "calib_hf_only": "仅依赖视觉模型判断，缺少元数据佐证",
+    "source_vit_dima": "ViT 深度学习模型 (dima806)"
   },
   "errors": {
     "invalidImage": "请上传图片文件（JPG、PNG、WebP）",
@@ -353,7 +355,7 @@
   },
   "paywall": {
     "title": "专业检测报告",
-    "desc": "完整证据链、各引擎信号明细与置信度校准说明，为 Pro 会员专属。免费用户仅显示判定结论与 AI 概率。",
+    "desc": "完整证据链、各引擎信号明细与置信度校准说明，为 Pro 会员专属。免费用户仅显示判定结论与 AI 味。",
     "cta": "注册 / 升级查看",
     "note": "Pro 会员即将上线，注册即可抢先体验"
   }

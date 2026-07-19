@@ -1,17 +1,28 @@
 /**
- * Hugging Face ViT Image Detector
- * Model: Ateeqq/ai-vs-human-image-detector
- * Accuracy: 99.23% (verified 88.9% in our tests)
+ * Hugging Face ViT Image Detector (multi-model capable).
  *
- * Uses router.huggingface.co endpoint (api-inference has SSL issues).
- * Configures proxy agent from env vars for environments behind a proxy.
+ * Primary: Ateeqq/ai-vs-human-image-detector (binary ai/hum)
+ * Secondary: dima806/deepfake-image-detector (binary Real/Fake)
+ *
+ * Both share the same router.huggingface.co endpoint and free-tier auth model.
+ * Uses the HF_TOKEN env var.
+ *
+ * Returns the SAME HFDetectionResult shape regardless of which model produced
+ * it — the response normalizer below maps different label vocabularies onto
+ * the unified { aiScore, humanScore, confidence } shape.
  */
 
 import { serverT, type ServerLocale } from "@/lib/i18n/server";
 
-// Use router endpoint — api-inference.huggingface.co has SSL issues in some environments
-const HF_MODEL_URL =
-  "https://router.huggingface.co/hf-inference/models/Ateeqq/ai-vs-human-image-detector";
+const HF_BASE =
+  "https://router.huggingface.co/hf-inference/models";
+
+const HF_MODELS = {
+  ateeqq: `${HF_BASE}/Ateeqq/ai-vs-human-image-detector`,
+  dima806: `${HF_BASE}/dima806/deepfake-image-detector`,
+} as const;
+
+export type HFModelId = keyof typeof HF_MODELS;
 
 // Configure proxy if available (for dev environments behind a proxy)
 // In production (Vercel), no proxy is needed
@@ -36,15 +47,24 @@ export interface HFDetectionResult {
   aiScore: number; // 0-1, probability of being AI-generated
   humanScore: number; // 0-1, probability of being human/real
   confidence: number; // max(aiScore, humanScore)
+  modelId: HFModelId; // which model produced this result
 }
 
+/**
+ * Call a Hugging Face image classification model. Accepts any model id under
+ * HF_MODELS (or a fully qualified URL via `customUrl`). Returns a normalized
+ * HFDetectionResult regardless of the underlying model's label vocabulary.
+ */
 export async function detectWithHuggingFace(
   imageBuffer: Buffer,
   token: string,
-  locale: ServerLocale = "zh"
+  locale: ServerLocale = "zh",
+  modelId: HFModelId = "ateeqq"
 ): Promise<HFDetectionResult> {
   const t = (key: string, params?: Record<string, string | number>) =>
     serverT(locale, key, params);
+
+  const url = HF_MODELS[modelId];
 
   ensureProxy();
 
@@ -56,7 +76,7 @@ export async function detectWithHuggingFace(
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 15000);
 
-      const response = await fetch(HF_MODEL_URL, {
+      const response = await fetch(url, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -80,24 +100,8 @@ export async function detectWithHuggingFace(
       }
 
       const data = await response.json();
-
-      // Response format: [{ "label": "ai", "score": 0.9996 }, { "label": "hum", "score": 0.0004 }]
-      if (!Array.isArray(data) || data.length < 2) {
-        throw new Error(t("api.hfFormatError"));
-      }
-
-      const aiResult = data.find((r: { label: string }) => r.label === "ai");
-      const humResult = data.find((r: { label: string }) => r.label === "hum");
-
-      if (!aiResult || !humResult) {
-        throw new Error(t("api.hfMissingFields"));
-      }
-
-      return {
-        aiScore: aiResult.score,
-        humanScore: humResult.score,
-        confidence: Math.max(aiResult.score, humResult.score),
-      };
+      const parsed = normalizeHFResponse(data);
+      return { ...parsed, modelId };
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
       if (attempt < 2) {
@@ -107,4 +111,45 @@ export async function detectWithHuggingFace(
   }
 
   throw lastError || new Error(t("api.hfCallFailed"));
+}
+
+/**
+ * Normalize any HF image-classification response into { aiScore, humanScore,
+ * confidence }. We accept both:
+ *   Ateeqq:   [{ label: "ai", score: 0.99 }, { label: "hum", score: 0.01 }]
+ *   Dima806:  [{ label: "Real", score: 0.95 }, { label: "Fake", score: 0.05 }]
+ * and any other pair by checking each label against the AI / Real vocabularies.
+ */
+function normalizeHFResponse(data: unknown): Omit<HFDetectionResult, "modelId"> {
+  if (!Array.isArray(data) || data.length < 2) {
+    throw new Error("hf.formatError");
+  }
+  const aiTokens = ["ai", "artificial", "fake", "synthetic", "generated"];
+  const realTokens = ["hum", "human", "real", "authentic", "natural"];
+
+  let aiScore = 0.5;
+  let humanScore = 0.5;
+  let matched = false;
+
+  for (const item of data as Array<{ label?: string; score?: number }>) {
+    if (typeof item?.label !== "string" || typeof item?.score !== "number") continue;
+    const l = item.label.toLowerCase();
+    if (aiTokens.some((t) => l.includes(t))) {
+      aiScore = item.score;
+      matched = true;
+    } else if (realTokens.some((t) => l.includes(t))) {
+      humanScore = item.score;
+      matched = true;
+    }
+  }
+
+  if (!matched) {
+    throw new Error("hf.unknownLabels");
+  }
+
+  return {
+    aiScore,
+    humanScore,
+    confidence: Math.max(aiScore, humanScore),
+  };
 }

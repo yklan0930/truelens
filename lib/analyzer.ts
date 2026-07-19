@@ -31,6 +31,7 @@ export interface DetectionResult {
   confidence: number; // 0-100
   engines: {
     huggingface?: HFDetectionResult;
+    huggingfaceDima?: HFDetectionResult;
     exif?: ExifResult;
     watermark?: WatermarkResult;
     face?: FaceSkinResult;
@@ -65,6 +66,32 @@ export interface SignalItem {
 
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 
+/**
+ * Combine the two ViT model scores into a single ai probability (0..1).
+ * - Both succeed: 0.6 * primary + 0.4 * secondary (Ateeqq is generally more
+ *   accurate on the kinds of images we see, so it gets a higher weight).
+ *   If they DISAGREE strongly (|diff| > 0.3), pull the result toward 0.5
+ *   by 30% to express "models disagree -> uncertain".
+ * - Only one succeeds: use that one (don't penalize the user for a single
+ *   model hiccup).
+ * - Both fail: 0.5 (neutral fallback).
+ */
+export function combineViTModels(
+  primary: HFDetectionResult | null,
+  secondary: HFDetectionResult | null,
+): { aiProb: number; combinedScore: number } {
+  if (primary && secondary) {
+    const w = 0.6 * primary.aiScore + 0.4 * secondary.aiScore;
+    const diff = Math.abs(primary.aiScore - secondary.aiScore);
+    // Strong disagreement: pull 30% toward neutral
+    const aiProb = diff > 0.3 ? 0.5 + (w - 0.5) * 0.7 : w;
+    return { aiProb: clamp(aiProb, 0.01, 0.99), combinedScore: w };
+  }
+  if (primary) return { aiProb: clamp(primary.aiScore, 0.01, 0.99), combinedScore: primary.aiScore };
+  if (secondary) return { aiProb: clamp(secondary.aiScore, 0.01, 0.99), combinedScore: secondary.aiScore };
+  return { aiProb: 0.5, combinedScore: 0.5 };
+}
+
 export async function analyzeImage(
   imageBuffer: Buffer,
   hfToken: string,
@@ -76,9 +103,13 @@ export async function analyzeImage(
 
   const startTime = Date.now();
 
-  // Run both engines in parallel
-  const [hfResult, exifResult] = await Promise.allSettled([
-    detectWithHuggingFace(imageBuffer, hfToken, locale),
+  // Run all engines in parallel.
+  // - 2 HF vision models (Ateeqq primary, dima806 secondary) — averaged
+  //   with a 0.6 / 0.4 weighting, see `combineViTModels` below.
+  // - EXIF metadata analysis (moderator)
+  const [hfPrimary, hfSecondary, exifResult] = await Promise.allSettled([
+    detectWithHuggingFace(imageBuffer, hfToken, locale, "ateeqq"),
+    detectWithHuggingFace(imageBuffer, hfToken, locale, "dima806"),
     analyzeExif(imageBuffer, filename, locale),
   ]);
 
@@ -86,31 +117,68 @@ export async function analyzeImage(
   const evidence: EvidenceItem[] = [];
   const signals: SignalItem[] = [];
 
-  // --- HF ViT (primary) ---
-  let aiProb = 0.5; // fallback if HF fails
-  if (hfResult.status === "fulfilled" && hfResult.value) {
-    const hf = hfResult.value;
-    engines.huggingface = hf;
-    aiProb = hf.aiScore;
+  // --- HF ViT ensemble (primary + secondary model) ---
+  // If both succeed, weighted average. If only one succeeds, use that one.
+  // If both fail, fall back to 0.5 with an "engine unavailable" evidence item.
+  const primaryHF = hfPrimary.status === "fulfilled" ? hfPrimary.value : null;
+  const secondaryHF = hfSecondary.status === "fulfilled" ? hfSecondary.value : null;
 
-    const hfScorePct = Math.round(hf.aiScore * 100);
+  if (primaryHF) engines.huggingface = primaryHF;
+  if (secondaryHF) engines.huggingfaceDima = secondaryHF;
+
+  const combined = combineViTModels(primaryHF, secondaryHF);
+  let aiProb = combined.aiProb;
+
+  // Per-model evidence
+  if (primaryHF) {
+    const hfScorePct = Math.round(primaryHF.aiScore * 100);
     evidence.push({
       source: t("evidence.source_vit"),
-      type: hf.aiScore > 0.5 ? "ai" : "real",
-      label:
-        hf.aiScore > 0.5
-          ? t("evidence.ai_prob_label", { value: (hf.aiScore * 100).toFixed(1) })
-          : t("evidence.real_prob_label", { value: (hf.humanScore * 100).toFixed(1) }),
-      detail: t("evidence.hf_model_detail", { value: (hf.confidence * 100).toFixed(1) }),
+      type: primaryHF.aiScore > 0.5 ? "ai" : "real",
+      label: primaryHF.aiScore > 0.5
+        ? t("evidence.ai_prob_label", { value: (primaryHF.aiScore * 100).toFixed(1) })
+        : t("evidence.real_prob_label", { value: (primaryHF.humanScore * 100).toFixed(1) }),
+      detail: t("evidence.hf_model_detail", {
+        value: (primaryHF.confidence * 100).toFixed(1),
+        model: "Ateeqq",
+      }),
     });
     signals.push({
       category: "vit",
       label: t("evidence.source_vit"),
-      detail: t("evidence.hf_model_detail", { value: (hf.confidence * 100).toFixed(1) }),
-      lean: hf.aiScore > 0.5 ? "ai" : "real",
+      detail: t("evidence.hf_model_detail", {
+        value: (primaryHF.confidence * 100).toFixed(1),
+        model: "Ateeqq",
+      }),
+      lean: primaryHF.aiScore > 0.5 ? "ai" : "real",
       score: hfScorePct,
     });
-  } else {
+  }
+  if (secondaryHF) {
+    const dScorePct = Math.round(secondaryHF.aiScore * 100);
+    evidence.push({
+      source: t("evidence.source_vit_dima"),
+      type: secondaryHF.aiScore > 0.5 ? "ai" : "real",
+      label: secondaryHF.aiScore > 0.5
+        ? t("evidence.ai_prob_label", { value: (secondaryHF.aiScore * 100).toFixed(1) })
+        : t("evidence.real_prob_label", { value: (secondaryHF.humanScore * 100).toFixed(1) }),
+      detail: t("evidence.hf_model_detail", {
+        value: (secondaryHF.confidence * 100).toFixed(1),
+        model: "dima806",
+      }),
+    });
+    signals.push({
+      category: "vit",
+      label: t("evidence.source_vit_dima"),
+      detail: t("evidence.hf_model_detail", {
+        value: (secondaryHF.confidence * 100).toFixed(1),
+        model: "dima806",
+      }),
+      lean: secondaryHF.aiScore > 0.5 ? "ai" : "real",
+      score: dScorePct,
+    });
+  }
+  if (!primaryHF && !secondaryHF) {
     evidence.push({
       source: t("evidence.source_vit"),
       type: "neutral",
