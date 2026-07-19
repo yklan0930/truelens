@@ -54,3 +54,9 @@ extension.crx
 scripts/tmp-*.mjs
 scripts/tmp-*.js
 scripts/tmp-*.py
+
+# temporary verification / probe scripts (dev-only, not shipped)
+tests/_*.mjs
+tests/_*.json
+tests/_*.log
+tests/_*.txt
