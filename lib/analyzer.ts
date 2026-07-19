@@ -468,9 +468,12 @@ export async function analyzeImage(
     });
   }
 
-  // A screen re-photo that the model flags as AI is a known false-positive
-  // class; lower confidence so the verdict reads as "unreliable, check context".
-  if (screen?.isScreenCapture && aiPercentRaw >= 60) {
+  // An AI-generated image is never a "photo of a screen", so a screen
+  // re-photo flag on an AI verdict is a false positive — suppress it (and the
+  // confidence penalty). The screen-rephoto tip only makes sense for real
+  // photos that might be mis-judged as AI.
+  const isAIGenerated = verdict === "likely_ai";
+  if (screen?.isScreenCapture && aiPercentRaw >= 60 && !isAIGenerated) {
     confidence = Math.min(confidence, 60);
   }
 
@@ -486,7 +489,7 @@ export async function analyzeImage(
     evidence,
     signals,
     calibration: calibrationNote || undefined,
-    screenRephoto: screen?.isScreenCapture ?? false,
+    screenRephoto: !!screen?.isScreenCapture && !isAIGenerated,
     processingTimeMs: Date.now() - startTime,
   };
 }

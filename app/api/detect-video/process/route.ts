@@ -138,36 +138,15 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Run the existing image detect logic on each frame, in parallel.
-  const { analyzeImage } = await import("@/lib/analyzer");
+  // Score each frame with Sightengine's `genai` image model (serialized +
+  // 429-retried so the free tier's 1 req/s limit doesn't silently degrade
+  // results). Falls back to the full analyzer when Sightengine is off.
+  const { detectFrames } = await import("@/lib/video/framesDetect");
 
-  const perFrame: FrameDetection[] = await Promise.all(
-    files.map(async (f) => {
-      try {
-        const buf = Buffer.from(await f.arrayBuffer());
-        const result = await analyzeImage(
-          buf,
-          process.env.HF_TOKEN || "",
-          f.name || "frame",
-          "zh"
-        );
-        return {
-          aiProbability: result.aiProbability,
-          confidence: result.confidence,
-          signals: (result.signals || []).map((s) => ({
-            category: s.category,
-            label: s.label,
-            detail: s.detail,
-            lean: s.lean,
-            score: s.score,
-          })),
-        };
-      } catch (e) {
-        console.error("[TrueLens Video Frames] frame analysis failed:", e);
-        return { aiProbability: 50, confidence: 0, signals: [] };
-      }
-    })
+  const frameInputs = await Promise.all(
+    files.map(async (f) => ({ buf: Buffer.from(await f.arrayBuffer()), name: f.name || "frame" }))
   );
+  const perFrame: FrameDetection[] = await detectFrames(frameInputs);
 
   const aggregated = aggregateFrameResults(perFrame, { fileName });
   const processingTimeMs = Date.now() - t0;
