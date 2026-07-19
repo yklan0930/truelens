@@ -20,6 +20,7 @@
 import { detectWithHuggingFace, HFDetectionResult } from "./detectors/huggingface";
 import { analyzeExif, ExifResult, type SignalLean } from "./detectors/exif";
 import { detectWatermark, type WatermarkResult } from "./detectors/watermark";
+import { detectAIWatermark, type AIWatermarkResult } from "./detectors/aiWatermark";
 import { analyzeFaceSkin, type FaceSkinResult } from "./detectors/skin";
 import { analyzeTexture, type TextureResult } from "./detectors/texture";
 import { analyzeScreen, type ScreenResult } from "./detectors/screen";
@@ -34,6 +35,7 @@ export interface DetectionResult {
     huggingfaceDima?: HFDetectionResult;
     exif?: ExifResult;
     watermark?: WatermarkResult;
+    aiWatermark?: AIWatermarkResult;
     face?: FaceSkinResult;
     texture?: TextureResult;
     screen?: ScreenResult;
@@ -377,6 +379,42 @@ export async function analyzeImage(
     });
   }
 
+  // --- AI generation watermark (e.g. "图片由AI生成", "AI Generated") ---
+  // Strong signal: most major AI image generators stamp a watermark on their
+  // output. If we see one, this image is DEFINITELY AI-generated — the
+  // screen-detection fingerprint (moiré / sub-pixel grid) sometimes false-
+  // positives on these images, so we also SKIP the screen check entirely.
+  let aiWatermark: AIWatermarkResult | null = null;
+  try {
+    aiWatermark = await detectAIWatermark(imageBuffer);
+  } catch {
+    aiWatermark = null;
+  }
+  if (aiWatermark?.found) {
+    engines.aiWatermark = aiWatermark;
+    // Strong boost: 0.30 nudge toward AI, capped at 0.97 to leave room.
+    aiProb = clamp(0.5 + (aiProb - 0.5) * 0.6 + 0.30, 0.01, 0.97);
+    evidence.push({
+      source: t("evidence.source_ai_watermark"),
+      type: "ai",
+      label: t("evidence.ai_watermark_detected"),
+      detail: t("evidence.ai_watermark_detected_detail", {
+        position: aiWatermark.position || "bottom",
+        confidence: aiWatermark.confidence,
+      }),
+    });
+    signals.push({
+      category: "format",
+      label: t("evidence.ai_watermark_detected"),
+      detail: t("evidence.ai_watermark_detected_detail", {
+        position: aiWatermark.position || "bottom",
+        confidence: aiWatermark.confidence,
+      }),
+      lean: "ai",
+      score: aiWatermark.confidence,
+    });
+  }
+
   // --- Screen re-photography (best-effort, ANNOTATION ONLY) ---
   // A phone photo OF a screen (a screenshot / slide / webpage re-photographed)
   // is a genuine capture, but its moiré / sub-pixel-grid fingerprints make the
@@ -384,8 +422,11 @@ export async function analyzeImage(
   // here — doing so would let real AI images slip through. Instead we only
   // ANNOTATE the result as "likely unreliable" and lower confidence below, so
   // the user knows to judge with context.
+  // SKIP entirely if we already detected an AI watermark — those images are
+  // definitively AI, and the moiré/screen fingerprint sometimes false-positives
+  // on them too.
   let screen: ScreenResult | null = null;
-  if (aiProb > 0.5) {
+  if (aiProb > 0.5 && !aiWatermark?.found) {
     try {
       screen = await analyzeScreen(imageBuffer);
     } catch {

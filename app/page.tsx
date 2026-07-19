@@ -1286,52 +1286,77 @@ export default function Home() {
                   </div>
                 )}
 
-                {/* Verdict Card */}
+                {/* Verdict Card — polished, more professional layout */}
                 <div
-                  className={`${verdictConfig[result.verdict].bgColor} ${
+                  className={`relative overflow-hidden ${verdictConfig[result.verdict].bgColor} ${
                     verdictConfig[result.verdict].borderColor
-                  } border rounded-2xl p-5 sm:p-6`}
+                  } border rounded-2xl p-5 sm:p-7 shadow-sm`}
                 >
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      <span className="text-3xl">
+                  {/* Subtle background accent */}
+                  <div
+                    className={`absolute -top-16 -right-16 w-48 h-48 rounded-full opacity-10 ${
+                      result.verdict === "likely_ai"
+                        ? "bg-red-500"
+                        : result.verdict === "likely_real"
+                          ? "bg-green-500"
+                          : "bg-yellow-500"
+                    }`}
+                  />
+
+                  <div className="relative flex items-start justify-between mb-5 gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div
+                        className={`shrink-0 w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shadow-sm ${
+                          result.verdict === "likely_ai"
+                            ? "bg-red-100"
+                            : result.verdict === "likely_real"
+                              ? "bg-green-100"
+                              : "bg-yellow-100"
+                        }`}
+                      >
                         {verdictConfig[result.verdict].icon}
-                      </span>
-                      <div>
+                      </div>
+                      <div className="min-w-0">
                         <p
-                          className={`text-xl sm:text-2xl font-bold ${verdictConfig[result.verdict].color}`}
+                          className={`text-xl sm:text-2xl font-bold tracking-tight ${verdictConfig[result.verdict].color}`}
                         >
                           {verdictConfig[result.verdict].label}
                         </p>
-                        <p className="text-sm text-slate-500">
+                        <p className="text-sm text-slate-500 mt-0.5">
                           {t("result.confidence", { value: result.confidence })}
                         </p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm text-slate-500">{t("result.aiProbability")}</p>
+                    <div className="text-right shrink-0">
+                      <p className="text-xs text-slate-500 font-medium uppercase tracking-wider">
+                        {t("result.aiProbability")}
+                      </p>
                       <p
-                        className={`text-2xl sm:text-3xl font-bold ${result.aiProbability >= 50 ? "text-red-600" : "text-green-600"}`}
+                        className={`text-3xl sm:text-4xl font-bold tabular-nums tracking-tight ${
+                          result.aiProbability >= 50 ? "text-red-600" : "text-green-600"
+                        }`}
                       >
-                        {result.aiProbability}%
+                        {result.aiProbability}<span className="text-lg sm:text-xl font-medium text-slate-500">%</span>
                       </p>
                     </div>
                   </div>
 
-                  {/* Probability Bar */}
-                  <div className="relative h-3 sm:h-4 bg-slate-200 rounded-full overflow-hidden">
+                  {/* Probability Bar — taller, with tick marks for 50% threshold */}
+                  <div className="relative h-4 sm:h-5 bg-slate-200/70 rounded-full overflow-visible">
                     <div
-                      className={`absolute left-0 top-0 h-full transition-all duration-1000 ${
+                      className={`absolute left-0 top-0 h-full rounded-full transition-all duration-1000 ${
                         result.aiProbability >= 50
-                          ? "bg-gradient-to-r from-orange-400 to-red-500"
+                          ? "bg-gradient-to-r from-orange-400 via-red-400 to-red-500"
                           : "bg-gradient-to-r from-green-400 to-green-500"
                       }`}
                       style={{ width: `${result.aiProbability}%` }}
                     />
+                    {/* 50% threshold tick */}
+                    <div className="absolute top-0 bottom-0 left-1/2 w-px bg-slate-400/50" />
                   </div>
-                  <div className="flex justify-between mt-1 text-xs text-slate-400">
-                    <span>{t("result.prob_real")}</span>
-                    <span>{t("result.prob_ai")}</span>
+                  <div className="flex justify-between mt-2 text-xs text-slate-500">
+                    <span className="font-medium">{t("result.prob_real")}</span>
+                    <span className="font-medium">{t("result.prob_ai")}</span>
                   </div>
                 </div>
 
@@ -1657,16 +1682,19 @@ export default function Home() {
       <footer className="border-t border-slate-200 mt-12">
         <div className="max-w-4xl mx-auto px-4 py-6 text-center text-sm text-slate-400 space-y-2">
           <p>{t("footer.description")}</p>
-          <p>{t("footer.copyright")}</p>
           <p
-            className="text-xs text-slate-300 font-mono"
+            className="inline-flex items-center justify-center gap-1.5 flex-wrap"
             title={
               getBuildInfo().sha
                 ? `Build ${getBuildInfo().version} · ${getBuildInfo().sha}`
                 : `Build ${getBuildInfo().version}`
             }
           >
-            {getBuildInfo().buildLabel}
+            <span className="text-slate-500 font-medium">truelens.top</span>
+            <span className="text-slate-300">·</span>
+            <span className="text-slate-400 font-mono text-xs">v{getBuildInfo().version}{getBuildInfo().sha ? ` · ${getBuildInfo().sha}` : ""}</span>
+            <span className="text-slate-300">·</span>
+            <span>© 2026 Michael &amp; 小毕</span>
           </p>
           <div className="flex items-center justify-center gap-4 mt-1">
             <a

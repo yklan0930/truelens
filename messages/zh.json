@@ -211,9 +211,10 @@
   },
   "footer": {
     "description": "TrueLens — AI 内容真伪检测平台",
-    "copyright": "truelens.top | © 2026 Michael & 小毕",
+    "copyright": "truelens.top · v{version} · © 2026 Michael & 小毕",
     "github": "GitHub",
-    "feedback": "反馈问题"
+    "feedback": "反馈问题",
+    "copyrightEn": "truelens.top · v{version} · © 2026 Michael & 小毕"
   },
   "auth": {
     "login": "登录",
@@ -314,7 +315,10 @@
     "calib_borderline": "信号单一且处于临界区间，已主动降低置信度，建议结合其他手段判断",
     "calib_corroborated": "多路信号相互印证，置信度已上调",
     "calib_hf_only": "仅依赖视觉模型判断，缺少元数据佐证",
-    "source_vit_dima": "ViT 深度学习模型 (dima806)"
+    "source_vit_dima": "ViT 深度学习模型 (dima806)",
+    "source_ai_watermark": "AI 生成水印",
+    "ai_watermark_detected": "检测到 AI 生成水印",
+    "ai_watermark_detected_detail": "在{position}区域检测到类似「图片由AI生成」/「AI Generated」的水印（置信度 {confidence}%），这是 AI 生成器的自动标记，AI 概率显著上调。"
   },
   "errors": {
     "invalidImage": "请上传图片文件（JPG、PNG、WebP）",
