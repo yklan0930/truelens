@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "description": "TrueLens QA test set — 17 images (9 AI, 8 Real)",
+  "tests": [
+    { "file": "ai-beach.jpg", "expected": "ai", "category": "landscape", "note": "AI beach scene (challenge)" },
+    { "file": "ai-cat.jpg", "expected": "ai", "category": "animal", "note": "AI cat (challenge)" },
+    { "file": "ai-food.jpg", "expected": "ai", "category": "food", "note": "AI food (challenge)" },
+    { "file": "ai-mountain.jpg", "expected": "ai", "category": "landscape", "note": "AI mountain (challenge)" },
+    { "file": "ai-mountain-thumb.jpg", "expected": "ai", "category": "landscape", "note": "AI mountain thumbnail" },
+    { "file": "ai-portrait.jpg", "expected": "ai", "category": "portrait", "note": "AI portrait (challenge)" },
+    { "file": "ai-street.jpg", "expected": "ai", "category": "street", "note": "AI street scene (challenge)" },
+    { "file": "beach.png", "expected": "ai", "category": "landscape", "note": "AI beach (user test, no watermark)" },
+    { "file": "mountain.png", "expected": "ai", "category": "landscape", "note": "AI mountain (user test, with watermark)" },
+    { "file": "real-beach.jpg", "expected": "real", "category": "landscape", "note": "Real beach photo (challenge)" },
+    { "file": "real-cat.jpg", "expected": "real", "category": "animal", "note": "Real cat photo (challenge)" },
+    { "file": "real-field-people.jpg", "expected": "real", "category": "people", "note": "Real field people (challenge)" },
+    { "file": "real-food.jpg", "expected": "real", "category": "food", "note": "Real food photo (challenge)" },
+    { "file": "real-mountain.jpg", "expected": "real", "category": "landscape", "note": "Real mountain (challenge)" },
+    { "file": "real-mountain-thumb.jpg", "expected": "real", "category": "landscape", "note": "Real mountain thumbnail" },
+    { "file": "real-portrait.jpg", "expected": "real", "category": "portrait", "note": "Real portrait (challenge)" },
+    { "file": "real-street.jpg", "expected": "real", "category": "street", "note": "Real street scene (challenge)" }
+  ]
+}
