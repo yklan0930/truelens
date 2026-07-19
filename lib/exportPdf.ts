@@ -91,7 +91,7 @@ function buildReportNode(input: ExportPdfInput): HTMLElement {
 
   // --- Body ---
   const body = document.createElement("div");
-  body.style.cssText = "padding:24px;";
+  body.style.cssText = "padding:24px;padding-bottom:36px;";
 
   // Image preview
   if (imageDataUrl) {
@@ -163,7 +163,7 @@ function buildReportNode(input: ExportPdfInput): HTMLElement {
   for (const item of items) {
     const col = typeColor(item.type);
     const row = document.createElement("div");
-    row.style.cssText = `border:1px solid ${C.border};border-left:3px solid ${col};border-radius:8px;padding:10px 12px;margin-bottom:10px;`;
+    row.style.cssText = `border:1px solid ${C.border};border-left:3px solid ${col};border-radius:8px;padding:10px 12px;margin-bottom:14px;page-break-inside:avoid;`;
     const head = document.createElement("div");
     head.style.cssText = "display:flex;align-items:center;justify-content:space-between;";
     const label = document.createElement("span");

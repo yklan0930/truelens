@@ -115,7 +115,7 @@ export async function analyzeImage(
   opts?: { useBaseOnly?: boolean }
 ): Promise<DetectionResult> {
   const t = (key: string, params?: Record<string, string | number>) =>
-    serverT(locale, key);
+    serverT(locale, key, params);
 
   const startTime = Date.now();
 
