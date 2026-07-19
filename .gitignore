@@ -60,3 +60,6 @@ tests/_*.mjs
 tests/_*.json
 tests/_*.log
 tests/_*.txt
+
+# local logo asset backups (not for repo)
+.logo-backup/

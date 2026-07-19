@@ -891,13 +891,13 @@ export default function Home() {
             <img
               src="/logo-icon.png"
               alt="TrueLens"
-              width={48}
-              height={48}
-              className="w-12 h-12 rounded-xl shrink-0"
+              width={56}
+              height={56}
+              className="w-14 h-14 rounded-2xl shrink-0 ring-1 ring-slate-200/70 shadow-sm"
             />
             <div className="hidden sm:block">
-              <h1 className="text-2xl font-bold text-slate-900">{t("common.brand")}</h1>
-              <p className="text-xs text-slate-500">{t("common.tagline")}</p>
+              <h1 className="text-2xl font-bold tracking-tight text-slate-900 leading-tight">{t("common.brand")}</h1>
+              <p className="text-xs text-slate-500 leading-tight">{t("common.tagline")}</p>
             </div>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
