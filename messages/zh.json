@@ -7,15 +7,15 @@
   "header": {
     "hideHistory": "隐藏历史",
     "showHistory": "检测历史",
-    "quotaRemaining": "今日剩余 {quota} 次",
-    "quotaLoggedIn": "今日剩余 {quota} 次（登录用户）",
-    "quotaExhausted": "今日次数已用完",
+    "quotaRemaining": "剩余 {quota} 次",
+    "quotaLoggedIn": "剩余 {quota} 次（登录用户）",
+    "quotaExhausted": "次数已用完",
     "loginForMore": "登录享更多",
     "unlimited": "无限次"
   },
   "hero": {
     "title": "这张图片是真人拍的，还是 AI 生成的？",
-    "description": "上传图片，TrueLens 用深度学习模型 + 元数据分析给出 AI 味评分和证据。准确率 88.9%，秒级出结果。"
+    "description": "上传图片，TrueLens 用多引擎交叉验证 + 元数据分析 + OCR 水印检测，给出 AI 味评分和证据。准确率约 95%，秒级出结果。"
   },
   "challenge": {
     "title": "你能分辨哪张是经过 AI 处理的吗？",
@@ -38,12 +38,12 @@
     "note": "上传后会自动压缩优化，无需手动调整尺寸；建议使用清晰原图以获得最准判定",
     "screenWarning": "请勿上传手机翻拍屏幕的照片（如拍摄电脑、手机屏幕）",
     "screenWarningDetail": "这类图像带有摩尔纹等规律纹理，极易被误判为 AI 生成；如需检测屏幕内容，请直接上传原始截图文件",
-    "quotaExhaustedHint": "今日免费次数已用完，检测结果仅供参考",
+    "quotaExhaustedHint": "免费次数已用完，检测结果仅供参考",
     "loginEncouragement": "登录账号享每月 5 次高精度检测 →",
     "loginEncouragementExhausted": "登录账号即可获得每月 5 次高精度检测，立即注册免费账号 →",
     "fileName": "文件名",
-    "quotaInfo": "检测后将消耗今日免费额度，剩余 {quota} 次",
-    "quotaExhaustedBtn": "今日免费次数已用完，仍可检测但建议升级 Pro",
+    "quotaInfo": "检测将消耗免费额度，剩余 {quota} 次",
+    "quotaExhaustedBtn": "免费次数已用完，仍可检测但建议升级 Pro",
     "detect": "开始检测",
     "changeImage": "换一张"
   },
@@ -253,7 +253,7 @@
     "errorInvalidEmail": "邮箱格式不正确",
     "errorRequired": "请填写所有必填项",
     "signedInAs": "已登录",
-    "usageToday": "今日已检测 {count} 次",
+    "usageToday": "已检测 {count} 次",
     "memberSince": "注册于 {date}",
     "myHistory": "我的检测记录",
     "upgradePro": "升级 Pro",
