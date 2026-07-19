@@ -102,12 +102,28 @@ export async function generateShareCard(opts: {
   grad.addColorStop(1, "#7c3aed");
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, W, 110);
-  ctx.fillStyle = "#ffffff";
-  ctx.font = "bold 30px system-ui, -apple-system, sans-serif";
-  ctx.fillText(labels.cardTitle, 32, 52);
-  ctx.font = "15px system-ui, -apple-system, sans-serif";
-  ctx.fillStyle = "rgba(255,255,255,0.85)";
-  ctx.fillText(labels.cardSubtitle, 32, 82);
+
+  // Logo + brand
+  try {
+    const logoImg = await loadImage("/logo-icon.png");
+    const logoSize = 44;
+    ctx.drawImage(logoImg, 32, 18, logoSize, logoSize);
+    // Shift text to the right of logo
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 28px system-ui, -apple-system, sans-serif";
+    ctx.fillText(labels.cardTitle, 32 + logoSize + 12, 50);
+    ctx.font = "14px system-ui, -apple-system, sans-serif";
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
+    ctx.fillText(labels.cardSubtitle, 32 + logoSize + 12, 78);
+  } catch {
+    // Fallback: text-only header if logo fails to load
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 30px system-ui, -apple-system, sans-serif";
+    ctx.fillText(labels.cardTitle, 32, 52);
+    ctx.font = "15px system-ui, -apple-system, sans-serif";
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
+    ctx.fillText(labels.cardSubtitle, 32, 82);
+  }
 
   // Thumbnail
   const thumbX = 32;

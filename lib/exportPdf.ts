@@ -74,14 +74,20 @@ function buildReportNode(input: ExportPdfInput): HTMLElement {
 
   // --- Header band ---
   const header = document.createElement("div");
-  header.style.cssText = `background:${C.indigo};padding:18px 24px;color:${C.white};`;
+  header.style.cssText = `background:${C.indigo};padding:18px 24px;color:${C.white};display:flex;align-items:center;gap:12px;`;
+  const logoImg = document.createElement("img");
+  logoImg.src = "/logo-icon.png";
+  logoImg.style.cssText = "width:36px;height:36px;border-radius:8px;flex-shrink:0;";
+  header.appendChild(logoImg);
+  const brandWrap = document.createElement("div");
   const brand = document.createElement("div");
   brand.style.cssText = "font-size:20px;font-weight:700;line-height:1.2;";
   brand.textContent = "TrueLens";
   const sub = document.createElement("div");
   sub.style.cssText = "font-size:12px;opacity:0.85;margin-top:2px;";
   sub.textContent = t("pdf.title");
-  header.append(brand, sub);
+  brandWrap.append(brand, sub);
+  header.append(brandWrap);
 
   // --- Body ---
   const body = document.createElement("div");

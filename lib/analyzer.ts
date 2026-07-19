@@ -295,9 +295,13 @@ export async function analyzeImage(
   // --- Face / skin analysis (best-effort, conditional) ---
   // A detected human portrait is strong evidence of a REAL photograph; smoothed
   // skin inside that portrait points to a beauty-filter / retouching pipeline.
-  // We only spend the (cheap) pixel pass when the visual model is suspicious.
+  // IMPORTANT: we removed the upper confidence gate (< 0.98) that previously
+  // prevented this check from running on high-confidence ViT scores. That gate
+  // created a blind spot where real photos falsely scored 95–99% AI because
+  // NO anti-FP detector was allowed to run. We now always check when the visual
+  // model is AI-suspicious (aiProb > 0.5), regardless of how confident it is.
   let face: FaceSkinResult | null = null;
-  if (aiProb > 0.5 && aiProb < 0.98) {
+  if (aiProb > 0.5) {
     try {
       face = await analyzeFaceSkin(imageBuffer);
     } catch {
@@ -307,10 +311,31 @@ export async function analyzeImage(
   if (face?.signal) {
     engines.face = face;
     const beautified = face.signal === "real_retouched";
+
+    // Portrait Prior (v3.4): A detected human face is STRONG Bayesian evidence
+    // that the image is a real photograph, because current AI image generators
+    // still produce faces with subtly wrong anatomy/texture that the ViT
+    // model sometimes over-interprets as AI artifacts. When coverage is high
+    // enough (> 30%), we apply an immediate prior deduction BEFORE the
+    // compression factor — this is a two-stage defense.
+    const highCoveragePortrait = face.skinCoverage > 0.30;
+    if (highCoveragePortrait && aiProb > 0.65) {
+      // Pull down by up to 20 percentage points for clear portraits at
+      // extreme ViT scores. This corrects the model's systematic bias
+      // against human faces without affecting non-portrait images.
+      const priorDeduction = Math.min(0.20, (aiProb - 0.5) * 0.35);
+      aiProb = aiProb - priorDeduction;
+    }
+
     // Compression factor (lower = stronger pull toward "uncertain"):
-    //   0.50 — portrait with smoothed skin (beauty filter / retouching)
-    //   0.70 — portrait with natural skin texture (real photo)
-    const compression = beautified ? 0.5 : 0.7;
+    //   0.35 — portrait with smoothed skin (beauty filter / retouching) [was 0.50]
+    //   0.55 — portrait with natural skin texture (real photo)          [was 0.70]
+    // Increased strength (v3.4): the previous factors were too weak for
+    // extreme ViT false positives (95–99% on real portraits). Testing
+    // showed that even 0.5x compression left real portraits at ~73% AI,
+    // still above the 65% "likely_ai" threshold. The new values push clear
+    // portraits well into "uncertain" territory.
+    const compression = beautified ? 0.35 : 0.55;
     aiProb = 0.5 + (aiProb - 0.5) * compression;
     evidence.push({
       source: t("evidence.source_face"),
@@ -343,10 +368,11 @@ export async function analyzeImage(
   // Real camera/phone photos carry sensor-noise + JPEG fingerprints that
   // diffusion-AI images generally lack. This catches retouched / HDR /
   // colour-graded NON-portrait real photos that have no face, watermark, or
-  // EXIF cue. Only nudges borderline cases; a confident AI verdict is never
-  // softened, and it requires genuine sensor-noise heteroscedasticity first.
+  // EXIF cue.
+  // IMPORTANT: removed the < 0.95 upper gate (same blind-spot fix as face).
+  // This detector now runs whenever aiProb > 0.5 and no face was detected.
   let texture: TextureResult | null = null;
-  if (!face?.signal && aiProb > 0.5 && aiProb < 0.95) {
+  if (!face?.signal && aiProb > 0.5) {
     try {
       texture = await analyzeTexture(imageBuffer);
     } catch {
@@ -355,9 +381,10 @@ export async function analyzeImage(
   }
   if (texture?.signal === "real") {
     engines.texture = texture;
-    // Gentle compression: this is a softer real signal than a watermark, so we
-    // only pull borderline scores toward "uncertain" rather than slashing them.
-    aiProb = 0.5 + (aiProb - 0.5) * 0.7;
+    // Stronger compression (v3.4): was 0.7, now 0.55. Real camera sensor-noise
+    // fingerprints are genuine evidence; even at extreme ViT scores they should
+    // pull the result toward "uncertain".
+    aiProb = 0.5 + (aiProb - 0.5) * 0.55;
     evidence.push({
       source: t("evidence.source_texture"),
       type: "real",

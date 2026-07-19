@@ -813,19 +813,19 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100">
       {/* Header */}
-      <header className="border-b border-slate-200 bg-white/80 backdrop-blur-sm sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
+      <header className="border-b border-slate-200/80 bg-white/90 backdrop-blur-md sticky top-0 z-10 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+        <div className="max-w-4xl mx-auto px-4 py-2.5 flex items-center justify-between">
           <div className="flex items-center gap-3">
             {/* Logo */}
             <img
               src="/logo-icon.png"
               alt="TrueLens"
-              width={40}
-              height={40}
-              className="w-10 h-10 rounded-xl shrink-0"
+              width={48}
+              height={48}
+              className="w-12 h-12 rounded-xl shrink-0"
             />
             <div className="hidden sm:block">
-              <h1 className="text-xl font-bold text-slate-900">{t("common.brand")}</h1>
+              <h1 className="text-2xl font-bold text-slate-900">{t("common.brand")}</h1>
               <p className="text-xs text-slate-500">{t("common.tagline")}</p>
             </div>
           </div>
@@ -1120,10 +1120,10 @@ export default function Home() {
             onDragLeave={() => setDragOver(false)}
             onDrop={handleDrop}
             onClick={() => fileInputRef.current?.click()}
-            className={`border-2 border-dashed rounded-2xl p-8 sm:p-12 text-center cursor-pointer transition-all min-h-[200px] sm:min-h-[240px] flex flex-col items-center justify-center ${
+            className={`border-2 border-dashed rounded-2xl p-8 sm:p-12 text-center cursor-pointer transition-all duration-300 min-h-[200px] sm:min-h-[240px] flex flex-col items-center justify-center ${
               dragOver
-                ? "border-indigo-500 bg-indigo-50"
-                : "border-slate-300 bg-white hover:border-indigo-400 hover:bg-slate-50"
+                ? "border-indigo-500 bg-indigo-50/80 shadow-lg shadow-indigo-500/10 scale-[1.01]"
+                : "border-slate-300 bg-white hover:border-indigo-400 hover:bg-slate-50/80 hover:shadow-lg hover:shadow-slate-200/50"
             }`}
           >
             <div className="text-4xl sm:text-5xl mb-4">📸</div>
@@ -1295,7 +1295,7 @@ export default function Home() {
                 <div
                   className={`relative overflow-hidden ${verdictConfig[result.verdict].bgColor} ${
                     verdictConfig[result.verdict].borderColor
-                  } border rounded-2xl p-5 sm:p-7 shadow-sm`}
+                  } border rounded-2xl p-5 sm:p-7 shadow-sm hover:shadow-md transition-shadow duration-300`}
                 >
                   {/* Subtle background accent */}
                   <div
@@ -1562,22 +1562,22 @@ export default function Home() {
         {!image && mode === "image" && (
           <>
           <div className="mt-12 grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="bg-white rounded-xl p-5 border border-slate-200">
-              <div className="text-2xl mb-2">🧠</div>
+            <div className="bg-white rounded-xl p-5 border border-slate-200 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 group">
+              <div className="text-2xl mb-2 group-hover:scale-110 transition-transform inline-block">🧠</div>
               <h3 className="font-bold text-slate-900 mb-1">
                 {t("features.deepLearning.title")}
               </h3>
               <p className="text-sm text-slate-500">{t("features.deepLearning.desc")}</p>
             </div>
-            <div className="bg-white rounded-xl p-5 border border-slate-200">
-              <div className="text-2xl mb-2">📋</div>
+            <div className="bg-white rounded-xl p-5 border border-slate-200 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 group">
+              <div className="text-2xl mb-2 group-hover:scale-110 transition-transform inline-block">📋</div>
               <h3 className="font-bold text-slate-900 mb-1">
                 {t("features.exifAnalysis.title")}
               </h3>
               <p className="text-sm text-slate-500">{t("features.exifAnalysis.desc")}</p>
             </div>
-            <div className="bg-white rounded-xl p-5 border border-slate-200">
-              <div className="text-2xl mb-2">⚡</div>
+            <div className="bg-white rounded-xl p-5 border border-slate-200 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 group">
+              <div className="text-2xl mb-2 group-hover:scale-110 transition-transform inline-block">⚡</div>
               <h3 className="font-bold text-slate-900 mb-1">
                 {t("features.fastResult.title")}
               </h3>
@@ -1591,22 +1591,22 @@ export default function Home() {
               {t("howItWorks.title")}
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="bg-white rounded-xl p-5 border border-slate-200 text-center">
-                <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-600 font-bold text-lg flex items-center justify-center mx-auto mb-3">
+              <div className="bg-white rounded-xl p-5 border border-slate-200 text-center hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
+                <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-600 font-bold text-lg flex items-center justify-center mx-auto mb-3 ring-4 ring-indigo-50">
                   1
                 </div>
                 <h3 className="font-bold text-slate-900 mb-1">{t("howItWorks.step1Title")}</h3>
                 <p className="text-sm text-slate-500">{t("howItWorks.step1Desc")}</p>
               </div>
-              <div className="bg-white rounded-xl p-5 border border-slate-200 text-center">
-                <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-600 font-bold text-lg flex items-center justify-center mx-auto mb-3">
+              <div className="bg-white rounded-xl p-5 border border-slate-200 text-center hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
+                <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-600 font-bold text-lg flex items-center justify-center mx-auto mb-3 ring-4 ring-indigo-50">
                   2
                 </div>
                 <h3 className="font-bold text-slate-900 mb-1">{t("howItWorks.step2Title")}</h3>
                 <p className="text-sm text-slate-500">{t("howItWorks.step2Desc")}</p>
               </div>
-              <div className="bg-white rounded-xl p-5 border border-slate-200 text-center">
-                <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-600 font-bold text-lg flex items-center justify-center mx-auto mb-3">
+              <div className="bg-white rounded-xl p-5 border border-slate-200 text-center hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
+                <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-600 font-bold text-lg flex items-center justify-center mx-auto mb-3 ring-4 ring-indigo-50">
                   3
                 </div>
                 <h3 className="font-bold text-slate-900 mb-1">{t("howItWorks.step3Title")}</h3>
@@ -1629,10 +1629,10 @@ export default function Home() {
                 { q: t("faq.q5"), a: t("faq.a5") },
                 { q: t("faq.q6"), a: t("faq.a6") },
               ].map((item, i) => (
-                <details key={i} className="bg-white rounded-xl border border-slate-200 group">
+                <details key={i} className="bg-white rounded-xl border border-slate-200 group [summary]:cursor-pointer [summary]:select-none hover:border-indigo-200 transition-colors">
                   <summary className="cursor-pointer p-4 font-medium text-slate-900 flex items-center justify-between list-none">
                     {item.q}
-                    <span className="text-slate-400 group-open:rotate-180 transition-transform">▾</span>
+                    <span className="text-slate-400 group-open:rotate-180 transition-transform duration-200">▾</span>
                   </summary>
                   <div className="px-4 pb-4 text-sm text-slate-600 leading-relaxed">
                     {item.a}
@@ -1684,8 +1684,9 @@ export default function Home() {
       )}
 
       {/* Footer */}
-      <footer className="border-t border-slate-200 mt-12">
-        <div className="max-w-4xl mx-auto px-4 py-6 text-center text-sm text-slate-400 space-y-2">
+      <footer className="mt-12">
+        <div className="bg-gradient-to-t from-slate-100/80 to-transparent pt-8 border-t border-slate-200/60">
+        <div className="max-w-4xl mx-auto px-4 pb-6 text-center text-sm text-slate-400 space-y-2">
           <p>{t("footer.description")}</p>
           <p
             className="inline-flex items-center justify-center gap-1.5 flex-wrap"
@@ -1719,6 +1720,7 @@ export default function Home() {
               💬 {t("footer.feedback")}
             </a>
           </div>
+        </div>
         </div>
       </footer>
     </div>
