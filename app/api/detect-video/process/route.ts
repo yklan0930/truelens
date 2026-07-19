@@ -21,8 +21,12 @@ import {
   monthlyLimitFor,
   ANON_MONTHLY_CREDITS,
   VIDEO_COST,
-  firstOfMonth,
-  hasCredits,
+  ensureMonthlyReset,
+  atomicDecrementCredits,
+  getMonthlyOps,
+  incrementMonthlyOps,
+  opsBudgetExhausted,
+  monthKey,
   type Plan,
 } from "@/lib/quota";
 
@@ -96,18 +100,17 @@ async function resolveAuth(): Promise<AuthInfo> {
       info.showDetailed = info.isAdmin || info.plan !== "free";
       info.monthlyLimit = monthlyLimitFor(info.plan, info.isAdmin, info.unlimited);
 
-      // Read this month's video-credit usage; block if a video (VIDEO_COST) won't fit.
-      const usage = await prisma.videoUsageRecord.findUnique({
-        where: { userId_date: { userId: info.userId, date: firstOfMonth() } },
-      });
-      info.monthlyUsed = usage?.count ?? 0;
-      if (!hasCredits(info.monthlyUsed, info.monthlyLimit, VIDEO_COST)) {
+      // Layer A (#131): videos draw from the SAME credit pool as images.
+      // Block (429) only when the balance can't cover VIDEO_COST (8) or the
+      // global monthly ops budget is exhausted.
+      const credits = await ensureMonthlyReset(prisma, info.userId, info.plan, info.isAdmin);
+      const monthOps = await getMonthlyOps(prisma, monthKey());
+      const opsFull = opsBudgetExhausted(monthOps);
+      if (!info.unlimited && (credits < VIDEO_COST || opsFull)) {
         throw new Error("QUOTA_EXHAUSTED");
       }
-      info.monthlyRemaining =
-        info.monthlyLimit === Infinity
-          ? -1
-          : Math.max(0, info.monthlyLimit - info.monthlyUsed);
+      info.monthlyUsed = info.unlimited ? 0 : Math.max(0, info.monthlyLimit - credits);
+      info.monthlyRemaining = info.unlimited ? -1 : credits;
     } else {
       // Anonymous visitors cannot run videos (cost 8 > anon grant of 3).
       throw new Error("QUOTA_EXHAUSTED");
@@ -167,12 +170,15 @@ export async function POST(request: NextRequest) {
   const processingTimeMs = Date.now() - t0;
   const result: VideoResult = { ...aggregated, processingTimeMs };
 
-  // Track video usage (1 video = 1 slot, regardless of frame count)
+  // Track video usage: 1 video = VIDEO_COST (8) credits from the shared pool,
+  // plus 8 ops against the global monthly Sightengine budget.
   if (authInfo.userId && isDatabaseConfigured()) {
     try {
-      await incrementVideoUsage(authInfo.userId);
+      const { prisma } = await import("@/lib/prisma");
+      await atomicDecrementCredits(prisma, authInfo.userId, VIDEO_COST);
+      await incrementMonthlyOps(prisma, monthKey(), VIDEO_COST);
     } catch (e) {
-      console.error("[TrueLens Video Frames] usage increment failed:", e);
+      console.error("[TrueLens Video Frames] credit decrement failed:", e);
     }
   }
 

@@ -371,5 +371,36 @@
     "desc": "The full evidence chain, per-engine signal breakdown and confidence calibration are exclusive to Pro members. Free users see the verdict and AI likelihood only.",
     "cta": "Sign up / Upgrade",
     "note": "Pro membership coming soon — sign up to get early access."
+  },
+  "pricing": {
+    "title": "Plans & Quota",
+    "subtitle": "Upgrade for more high-precision detections",
+    "perMonth": "/mo",
+    "free": { "name": "Free" },
+    "pro": { "name": "Pro" },
+    "business": { "name": "Business" },
+    "credits": "{credits} high-precision / month",
+    "unlimited": "Unlimited",
+    "feature": {
+      "free1": "5 high-precision detections / month",
+      "free2": "Video detection (base engine)",
+      "pro1": "500 high-precision detections / month",
+      "pro2": "Video high-precision (≈60 videos)",
+      "pro3": "Professional report",
+      "biz1": "5000 high-precision detections / month",
+      "biz2": "Video high-precision (≈600 videos)",
+      "biz3": "API access (coming soon)"
+    },
+    "addon": "Add-on pack ¥19 / 200 (valid this month)",
+    "cta": {
+      "upgrade": "Upgrade",
+      "buy": "Buy",
+      "current": "Current plan"
+    },
+    "mockNotice": "Demo mode: clicking upgrade grants credits directly — real payment (WeChat/Alipay) not yet connected",
+    "yourBalance": "Balance: {credits} high-precision",
+    "loading": "Loading…",
+    "processing": "Processing…",
+    "grantSuccess": "Granted {plan} plan, balance {credits}"
   }
 }

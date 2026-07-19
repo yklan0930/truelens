@@ -57,3 +57,101 @@ export function hasCredits(
   if (limit === Infinity) return true;
   return used + cost <= limit;
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// Layer A (#131): DB-backed credit BALANCE + global ops budget gate.
+// These helpers are provider-agnostic — they never touch Stripe / WeChat /
+// Alipay. Wiring a real payment adapter only needs to call `grantCredits()`.
+// ─────────────────────────────────────────────────────────────────────────
+
+// Global monthly Sightengine ops budget (spec §5.1). When this month's ops
+// hit the cap we force non-admins onto the zero-cost base model so the
+// vendor bill can never run away.
+export const MAX_SE_OPS_PER_MONTH = Number(
+  process.env.MAX_SE_OPS_PER_MONTH ?? 10000
+); // Starter tier = 10k ops
+
+// Reset a user's monthly credit grant if we're in a new month (or they've
+// never been granted). Returns the current balance. Admins are unlimited.
+export async function ensureMonthlyReset(
+  prisma: any,
+  userId: string,
+  plan: Plan,
+  isAdmin: boolean
+): Promise<number> {
+  if (isAdmin) return Infinity;
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { credits: true, creditsResetAt: true },
+  });
+  if (!user) return 0;
+  const reset = user.creditsResetAt ? new Date(user.creditsResetAt) : null;
+  if (!reset || reset < firstOfMonth()) {
+    await prisma.user.update({
+      where: { id: userId },
+      data: { credits: MONTHLY_CREDITS[plan] ?? 0, creditsResetAt: new Date() },
+    });
+    return MONTHLY_CREDITS[plan] ?? 0;
+  }
+  return user.credits;
+}
+
+// Atomically decrement `cost` credits. Throws if the balance is too low so
+// callers never over-spend (spec §5.5 — atomic deduction, no over-issue).
+export async function atomicDecrementCredits(
+  prisma: any,
+  userId: string,
+  cost: number
+): Promise<number> {
+  const updated = await prisma.user.updateMany({
+    where: { id: userId, credits: { gte: cost } },
+    data: { credits: { decrement: cost } },
+  });
+  if (updated.count === 0) {
+    throw new Error("INSUFFICIENT_CREDITS");
+  }
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { credits: true },
+  });
+  return user?.credits ?? 0;
+}
+
+// Grant credits (purchase / plan upgrade / admin top-up). Always additive.
+export async function grantCredits(
+  prisma: any,
+  userId: string,
+  amount: number
+): Promise<number> {
+  const user = await prisma.user.update({
+    where: { id: userId },
+    data: { credits: { increment: amount } },
+    select: { credits: true },
+  });
+  return user.credits;
+}
+
+// ── Global monthly ops counter (spec §5.1) ──
+
+export async function getMonthlyOps(prisma: any, month: string): Promise<number> {
+  const row = await prisma.monthlyOps.findUnique({ where: { month } });
+  return row?.ops ?? 0;
+}
+
+export async function incrementMonthlyOps(
+  prisma: any,
+  month: string,
+  n: number
+): Promise<number> {
+  const row = await prisma.monthlyOps.upsert({
+    where: { month },
+    create: { month, ops: n },
+    update: { ops: { increment: n } },
+  });
+  return row.ops;
+}
+
+export function opsBudgetExhausted(ops: number): boolean {
+  return ops >= MAX_SE_OPS_PER_MONTH;
+}
+

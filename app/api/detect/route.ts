@@ -7,8 +7,12 @@ import {
   ANON_MONTHLY_CREDITS,
   IMAGE_COST,
   monthKey,
-  firstOfMonth,
   hasCredits,
+  ensureMonthlyReset,
+  atomicDecrementCredits,
+  getMonthlyOps,
+  incrementMonthlyOps,
+  opsBudgetExhausted,
   type Plan,
 } from "@/lib/quota";
 
@@ -189,6 +193,7 @@ export async function POST(request: NextRequest) {
     // Monthly credit state (replaces the old daily counters).
     let monthlyLimit = ANON_MONTHLY_CREDITS;
     let monthlyUsed = 0;
+    let credits = 0; // DB-backed balance for authenticated users (Layer A)
     let useBaseOnly = false; // true => run zero-cost base model (free grant used up)
 
     const resolveAnon = () => {
@@ -232,12 +237,13 @@ export async function POST(request: NextRequest) {
           showDetailed = isAdmin || plan !== "free";
           monthlyLimit = monthlyLimitFor(plan, isAdmin, unlimited);
 
-          // Read this month's high-precision usage; degrade to base if exhausted.
-          const monthRow = await prisma.usageRecord.findUnique({
-            where: { userId_date: { userId, date: firstOfMonth() } },
-          });
-          monthlyUsed = monthRow?.count ?? 0;
-          if (!hasCredits(monthlyUsed, monthlyLimit, IMAGE_COST)) useBaseOnly = true;
+          // Layer A (#131): read the DB-backed credit BALANCE, not a plan
+          // constant. Degrade to the zero-cost base model when the balance is
+          // empty OR the global monthly Sightengine ops budget is exhausted.
+          credits = await ensureMonthlyReset(prisma, userId, plan, isAdmin);
+          const monthOps = await getMonthlyOps(prisma, monthKey());
+          const opsFull = opsBudgetExhausted(monthOps);
+          if (!unlimited && (credits < IMAGE_COST || opsFull)) useBaseOnly = true;
         } else {
           // Logged-out visitor: cookie-based monthly counter.
           resolveAnon();
@@ -282,20 +288,15 @@ export async function POST(request: NextRequest) {
         const { prisma } = await import("@/lib/prisma");
 
         if (!useBaseOnly) {
-          // Increment this month's high-precision usage (one row per month).
-          await prisma.usageRecord.upsert({
-            where: {
-              userId_date: { userId, date: firstOfMonth() },
-            },
-            create: {
-              userId,
-              date: firstOfMonth(),
-              count: 1,
-            },
-            update: {
-              count: { increment: 1 },
-            },
-          });
+          // Layer A (#131): atomically decrement the credit balance and bump
+          // the global monthly Sightengine ops counter (1 image = 1 op).
+          try {
+            credits = await atomicDecrementCredits(prisma, userId, IMAGE_COST);
+          } catch {
+            // Lost a race / balance was depleted mid-flight — fall back.
+            useBaseOnly = true;
+          }
+          await incrementMonthlyOps(prisma, monthKey(), IMAGE_COST);
         }
 
         // Save detection history
@@ -347,9 +348,10 @@ export async function POST(request: NextRequest) {
             isAdmin,
             plan,
             showDetailed,
-            monthlyLimit: monthlyLimit === Infinity ? -1 : monthlyLimit,
-            monthlyUsed: monthlyUsed + hpCost,
-            monthlyRemaining,
+            monthlyLimit: unlimited ? -1 : monthlyLimit,
+            monthlyUsed: unlimited ? 0 : Math.max(0, monthlyLimit - credits),
+            monthlyRemaining: unlimited ? -1 : credits,
+            credits: unlimited ? -1 : credits,
             usedBaseModel: useBaseOnly,
           }
         : {

@@ -5,8 +5,7 @@ import {
   monthlyLimitFor,
   ANON_MONTHLY_CREDITS,
   VIDEO_COST,
-  firstOfMonth,
-  hasCredits,
+  ensureMonthlyReset,
   type Plan,
 } from "@/lib/quota";
 
@@ -69,18 +68,14 @@ export async function GET(request: NextRequest) {
         showDetailed = isAdmin || plan !== "free";
         monthlyLimit = monthlyLimitFor(plan, isAdmin, unlimited);
 
-        // Read this month's video-credit usage for an accurate remaining count.
+        // Layer A (#131): reflect the shared credit balance (videos draw the
+        // same pool as images) so the client shows an accurate remaining count.
         try {
           const { prisma } = await import("@/lib/prisma");
-          const usage = await prisma.videoUsageRecord.findUnique({
-            where: { userId_date: { userId: session.user.id, date: firstOfMonth() } },
-          });
-          monthlyUsed = usage?.count ?? 0;
+          const credits = await ensureMonthlyReset(prisma, session.user.id, plan, isAdmin);
+          monthlyUsed = unlimited ? 0 : Math.max(0, monthlyLimit - credits);
+          monthlyRemaining = unlimited ? -1 : credits;
         } catch { /* keep */ }
-        monthlyRemaining =
-          monthlyLimit === Infinity
-            ? -1
-            : Math.max(0, monthlyLimit - monthlyUsed);
       }
     } catch { /* anonymous fallback */ }
   }

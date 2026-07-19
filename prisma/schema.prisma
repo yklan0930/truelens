@@ -21,6 +21,8 @@ model User {
   password      String? // For credentials provider (bcrypt hash)
   isAdmin       Boolean   @default(false) // TrueLens staff / owner — unlimited detections
   plan          String    @default("free") // free | pro | business
+  credits       Int       @default(0) // prepaid/monthly high-precision balance (Layer A, #131)
+  creditsResetAt DateTime? // last monthly grant timestamp; null => grant on next use
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -154,4 +156,18 @@ model VideoUsageRecord {
 
   @@unique([userId, date])
   @@map("video_usage_records")
+}
+
+/// Global monthly Sightengine ops counter (Layer A, #131, spec §5.1).
+/// Guards the vendor bill: when this month's ops hit MAX_SE_OPS_PER_MONTH
+/// we force non-admins onto the zero-cost base model.
+model MonthlyOps {
+  id        String   @id @default(cuid())
+  month     String   // YYYY-MM
+  ops       Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([month])
+  @@map("monthly_ops")
 }

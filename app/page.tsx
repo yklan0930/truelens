@@ -900,6 +900,14 @@ export default function Home() {
             </div>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
+            {/* Pricing link */}
+            <a
+              href="/pricing"
+              className="text-sm text-slate-500 hover:text-slate-700 transition-colors min-h-[44px] px-2 flex items-center"
+            >
+              {t("pricing.title")}
+            </a>
+
             {/* Language Switcher */}
             <button
               onClick={toggleLocale}
