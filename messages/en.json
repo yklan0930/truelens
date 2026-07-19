@@ -200,7 +200,7 @@
   "faq": {
     "title": "Frequently Asked Questions",
     "q1": "What is the accuracy of TrueLens?",
-    "a1": "TrueLens achieved 100% accuracy in a 17-image QA test (all 9 AI images identified, zero false positives on 8 real photos). However, AI generation technology is constantly evolving, and no detection tool can guarantee 100% accuracy. TrueLens results are for reference only and do not constitute legal evidence.",
+    "a1": "TrueLens reached about 95% accuracy in a 17-image QA test (all 9 AI images identified, zero false positives on 8 real photos). However, AI generation technology is constantly evolving and real-world accuracy varies, so no detection tool can guarantee 100%. TrueLens results are for reference only and do not constitute legal evidence.",
     "q2": "What image formats are supported?",
     "a2": "JPG, PNG, and WebP formats are supported, up to 10MB. Video detection is coming soon.",
     "q3": "Are my images stored?",
