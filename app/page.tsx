@@ -1892,14 +1892,14 @@ export default function Home() {
                 : `Build ${getBuildInfo().version}`
             }
           >
-            <span className="text-slate-500 font-medium">truelens.top</span>
-            <span className="text-slate-300">·</span>
+            <span className="text-slate-500">truelens.top</span>
+            <span className="text-slate-400">·</span>
             <span
-              className="text-slate-500 font-mono text-xs"
+              className="text-slate-500"
               title={getBuildInfo().sha ? `Build ${getBuildInfo().version} · ${getBuildInfo().sha}` : undefined}
             >v{getBuildInfo().version}{getBuildInfo().sha ? ` · ${getBuildInfo().sha}` : ""}</span>
-            <span className="text-slate-300">·</span>
-            <span>© 2026 Michael &amp; 小毕</span>
+            <span className="text-slate-400">·</span>
+            <span className="text-slate-500">© 2026 Michael &amp; 小毕</span>
           </p>
           <div className="flex items-center justify-center gap-4 mt-1">
             <a
