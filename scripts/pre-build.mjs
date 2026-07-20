@@ -26,7 +26,14 @@ try {
     stdio: ["pipe", "pipe", "ignore"],
   }).trim();
 } catch {
-  // Not a git repo or no commits — leave empty, version.ts falls back to env var
+  // Not a git repo or no commits — fall through to the env-var fallback below.
+}
+// Fallback: CLI deployments may upload files WITHOUT a .git directory, so
+// `git rev-parse` fails. Vercel still exposes the commit SHA via
+// VERCEL_GIT_COMMIT_SHA on Git-connected builds — bake it into the bundle so
+// the footer shows the SHA even when the runtime env var is unavailable.
+if (!sha) {
+  sha = (process.env.VERCEL_GIT_COMMIT_SHA || "").toString().trim().slice(0, 7);
 }
 const shaFileContent =
   `// Generated at build time by scripts/pre-build.mjs — DO NOT EDIT MANUALLY.\n` +

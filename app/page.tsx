@@ -1894,7 +1894,15 @@ export default function Home() {
           >
             <span className="text-slate-500 font-medium">truelens.top</span>
             <span className="text-slate-300">·</span>
-            <span className="text-slate-400 font-mono text-xs">v{getBuildInfo().version}{getBuildInfo().sha ? ` · ${getBuildInfo().sha}` : ""}</span>
+            <span className="text-slate-400 font-mono text-xs">v{getBuildInfo().version}</span>
+            {getBuildInfo().sha ? (
+              <span
+                className="text-slate-500 font-mono text-xs"
+                title={`Build ${getBuildInfo().version} · ${getBuildInfo().sha}`}
+              >
+                · <span className="text-indigo-500">{getBuildInfo().sha}</span>
+              </span>
+            ) : null}
             <span className="text-slate-300">·</span>
             <span>© 2026 Michael &amp; 小毕</span>
           </p>
