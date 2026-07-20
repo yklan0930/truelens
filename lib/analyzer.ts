@@ -35,6 +35,7 @@ import { detectWatermark, type WatermarkResult } from "./detectors/watermark";
 import { detectAIWatermark, type AIWatermarkResult } from "./detectors/aiWatermark";
 import { analyzeTexture, type TextureResult } from "./detectors/texture";
 import { analyzeScreen, type ScreenResult } from "./detectors/screen";
+import { detectC2PA, type C2paResult } from "./detectors/c2pa";
 import {
   detectAIWithSightengine,
   isSightengineImageConfigured,
@@ -55,6 +56,7 @@ export interface DetectionResult {
     aiWatermark?: AIWatermarkResult;
     texture?: TextureResult;
     screen?: ScreenResult;
+    c2pa?: C2paResult;
   };
   evidence: EvidenceItem[];
   /** Structured, human-readable signal breakdown (detailed report). */
@@ -389,6 +391,82 @@ export async function analyzeImage(
       lean: "neutral",
       score: 50,
     });
+  }
+
+  // --- C2PA / Content Credentials provenance check (best-effort) ---
+  // Reads & validates an embedded C2PA manifest store. A valid credential is
+  // strong "real" provenance evidence; a credential that explicitly declares
+  // AI generation is an honest self-disclosure we surface as a signal.
+  let c2pa: C2paResult | null = null;
+  try {
+    c2pa = await Promise.race([
+      detectC2PA(imageBuffer, { filename, locale }),
+      new Promise<C2paResult>((_, rej) =>
+        setTimeout(() => rej(new Error("c2pa-timeout")), 6000)
+      ),
+    ]);
+  } catch {
+    c2pa = null;
+  }
+  // Native lib absent in this environment — non-fatal, skip silently.
+  if (c2pa?.available === false) c2pa = null;
+  if (c2pa) {
+    engines.c2pa = c2pa;
+    if (c2pa.found && c2pa.valid && !c2pa.aiGenerated) {
+      // Genuine provenance credential for a non-AI asset → lean real.
+      aiProb = clamp(aiProb * 0.6, 0.01, 0.99);
+      evidence.push({
+        source: t("evidence.source_c2pa"),
+        type: "real",
+        label: t("evidence.c2pa_valid"),
+        detail: t("evidence.c2pa_valid_detail", {
+          signer: c2pa.signer || t("evidence.c2pa_unknown_signer"),
+        }),
+      });
+      signals.push({
+        category: "format",
+        label: t("evidence.c2pa_valid"),
+        detail: t("evidence.c2pa_valid_detail", {
+          signer: c2pa.signer || t("evidence.c2pa_unknown_signer"),
+        }),
+        lean: "real",
+        score: 15,
+      });
+    } else if (c2pa.found && c2pa.valid && c2pa.aiGenerated) {
+      // Honest self-disclosure of AI generation via Content Credentials.
+      aiProb = clamp(0.5 + (aiProb - 0.5) * 0.8 + 0.12, 0.01, 0.97);
+      evidence.push({
+        source: t("evidence.source_c2pa"),
+        type: "ai",
+        label: t("evidence.c2pa_ai_declared"),
+        detail: t("evidence.c2pa_ai_declared_detail", {
+          softwareAgent: c2pa.softwareAgent || t("evidence.c2pa_unknown_agent"),
+        }),
+      });
+      signals.push({
+        category: "format",
+        label: t("evidence.c2pa_ai_declared"),
+        detail: t("evidence.c2pa_ai_declared_detail", {
+          softwareAgent: c2pa.softwareAgent || t("evidence.c2pa_unknown_agent"),
+        }),
+        lean: "ai",
+        score: 70,
+      });
+    } else if (c2pa.found && (c2pa.isTampered || c2pa.validationStatus === "invalid")) {
+      evidence.push({
+        source: t("evidence.source_c2pa"),
+        type: "ai",
+        label: t("evidence.c2pa_tampered"),
+        detail: t("evidence.c2pa_tampered_detail"),
+      });
+      signals.push({
+        category: "format",
+        label: t("evidence.c2pa_tampered"),
+        detail: t("evidence.c2pa_tampered_detail"),
+        lean: "ai",
+        score: 60,
+      });
+    }
   }
 
   const aiPercentRaw = Math.round(aiProb * 100);

@@ -73,7 +73,18 @@
     "disclaimer": "TrueLens 结果仅供参考，不作为法律证据。AI 检测技术仍在发展中，可能存在误判。",
     "screenTip": "⚠️ 疑似屏幕翻拍：本图带有摩尔纹 / 像素网格等屏幕翻拍特征，极易被误判为 AI 生成。建议直接上传原始截图文件（而非手机翻拍）以获得可靠结果；当前判定仅供参考。",
     "aiWatermarkOcr": "检测到 AI 生成水印",
-    "aiWatermarkOcrDetail": "图片上发现明确的 AI 生成标识文字：「{text}」。这是该图由 AI 生成的强证据。"
+    "aiWatermarkOcrDetail": "图片上发现明确的 AI 生成标识文字：「{text}」。这是该图由 AI 生成的强证据。",
+    "c2pa_unavailable": "本环境未启用 C2PA 内容凭证验证（原生库未加载）。部署到支持的原生环境后即可生效。",
+    "c2pa_none": "未检测到内容凭证（C2PA）",
+    "c2pa_none_detail": "多数普通照片不携带内容凭证，属正常情况；带凭证的多为相机厂 / AI 平台 / 专业媒体出品。",
+    "c2pa_ai": "内容凭证标明：由 AI 生成",
+    "c2pa_ai_detail": "签发者：{signer}；生成工具：{agent}。该图已主动披露为 AI 生成。",
+    "c2pa_valid": "内容凭证有效（来源可信）",
+    "c2pa_valid_detail": "签发者：{signer}。该内容带有经密码学验证的来源凭证，倾向为真实创作。",
+    "c2pa_tampered": "内容凭证校验失败",
+    "c2pa_tampered_detail": "凭证签名校验未通过，文件可能被篡改或凭证无效。",
+    "c2pa_unknown_agent": "未知生成工具",
+    "c2pa_unknown_signer": "未知签发者"
   },
   "share": {
     "shareResult": "分享结果",
@@ -325,7 +336,16 @@
     "source_vit_dima": "基础视觉模型 (dima806)",
     "source_ai_watermark": "AI 生成水印",
     "ai_watermark_detected": "检测到 AI 生成水印",
-    "ai_watermark_detected_detail": "在{position}区域检测到类似「图片由AI生成」/「AI Generated」的水印（置信度 {confidence}%），这是 AI 生成器的自动标记，AI 概率显著上调。"
+    "ai_watermark_detected_detail": "在{position}区域检测到类似「图片由AI生成」/「AI Generated」的水印（置信度 {confidence}%），这是 AI 生成器的自动标记，AI 概率显著上调。",
+    "source_c2pa": "C2PA 内容凭证",
+    "c2pa_valid": "内容凭证有效（来源可信）",
+    "c2pa_valid_detail": "签发者：{signer}。该内容带有经密码学验证的来源凭证，倾向为真实创作。",
+    "c2pa_unknown_signer": "未知签发者",
+    "c2pa_ai_declared": "内容凭证标明由 AI 生成",
+    "c2pa_ai_declared_detail": "生成工具：{softwareAgent}。该内容已通过凭证主动披露为 AI 生成。",
+    "c2pa_unknown_agent": "未知生成工具",
+    "c2pa_tampered": "内容凭证校验失败",
+    "c2pa_tampered_detail": "凭证签名校验未通过，文件可能被篡改或凭证无效。"
   },
   "errors": {
     "invalidImage": "请上传图片文件（JPG、PNG、WebP）",

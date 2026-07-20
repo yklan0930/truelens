@@ -35,6 +35,24 @@ interface DetectionResult {
   processingTimeMs: number;
   fileName: string;
   fileSize: number;
+  c2pa?: C2paClientResult | null;
+}
+
+interface C2paClientResult {
+  found: boolean;
+  available: boolean;
+  valid?: boolean;
+  validationStatus?: string;
+  isTampered?: boolean;
+  signer?: string;
+  issuer?: string;
+  created?: string;
+  softwareAgent?: string;
+  aiGenerated?: boolean;
+  assertions?: string[];
+  embedded?: boolean;
+  remoteUrl?: string;
+  error?: string;
 }
 
 /** Strip any leftover template placeholders like {value} or [value] from evidence text */
@@ -1464,6 +1482,80 @@ export default function Home() {
                         <span className="text-red-700">
                           {t("result.aiWatermarkOcrDetail", { text: ocrWatermark.text })}
                         </span>
+                      </span>
+                    </p>
+                  </div>
+                )}
+
+                {/* Content Credentials (C2PA) — provenance from the file itself.
+                    Shown to ALL users: a valid credential is strong "real" proof,
+                    a self-declared AI credential is an honest disclosure. */}
+                {result.c2pa && (
+                  <div
+                    className={
+                      result.c2pa.available === false
+                        ? "bg-slate-50 border border-slate-200 rounded-2xl p-5"
+                        : result.c2pa.found && result.c2pa.valid && !result.c2pa.aiGenerated
+                        ? "bg-green-50 border border-green-200 rounded-2xl p-5"
+                        : result.c2pa.found && result.c2pa.aiGenerated
+                        ? "bg-amber-50 border border-amber-200 rounded-2xl p-5"
+                        : result.c2pa.found
+                        ? "bg-red-50 border border-red-200 rounded-2xl p-5"
+                        : "bg-slate-50 border border-slate-200 rounded-2xl p-5"
+                    }
+                  >
+                    <p
+                      className={
+                        "text-sm flex items-start gap-2 " +
+                        (result.c2pa.available === false
+                          ? "text-slate-600"
+                          : result.c2pa.found && result.c2pa.valid && !result.c2pa.aiGenerated
+                          ? "text-green-800"
+                          : result.c2pa.found && result.c2pa.aiGenerated
+                          ? "text-amber-800"
+                          : result.c2pa.found
+                          ? "text-red-800"
+                          : "text-slate-600")
+                      }
+                    >
+                      <span className="text-base leading-none">🔏</span>
+                      <span>
+                        {result.c2pa.available === false ? (
+                          <>{t("result.c2pa_unavailable")}</>
+                        ) : !result.c2pa.found ? (
+                          <>
+                            <strong className="font-semibold">{t("result.c2pa_none")}</strong>
+                            <br />
+                            <span>{t("result.c2pa_none_detail")}</span>
+                          </>
+                        ) : result.c2pa.found && result.c2pa.valid && result.c2pa.aiGenerated ? (
+                          <>
+                            <strong className="font-semibold">{t("result.c2pa_ai")}</strong>
+                            <br />
+                            <span>
+                              {t("result.c2pa_ai_detail", {
+                                agent: result.c2pa.softwareAgent || t("result.c2pa_unknown_agent"),
+                                signer: result.c2pa.signer || t("result.c2pa_unknown_signer"),
+                              })}
+                            </span>
+                          </>
+                        ) : result.c2pa.found && result.c2pa.valid ? (
+                          <>
+                            <strong className="font-semibold">{t("result.c2pa_valid")}</strong>
+                            <br />
+                            <span>
+                              {t("result.c2pa_valid_detail", {
+                                signer: result.c2pa.signer || t("result.c2pa_unknown_signer"),
+                              })}
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <strong className="font-semibold">{t("result.c2pa_tampered")}</strong>
+                            <br />
+                            <span>{t("result.c2pa_tampered_detail")}</span>
+                          </>
+                        )}
                       </span>
                     </p>
                   </div>

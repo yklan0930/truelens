@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>C2PA 技术评估与商业模式修正 · TrueLens 调研</title>
+<style>
+  :root { --ink:#0f172a; --sub:#475569; --line:#e2e8f0; --brand:#2563eb; --brand2:#0891b2; --ok:#16a34a; --warn:#d97706; --bad:#dc2626; --bg:#f8fafc; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; color:var(--ink); background:var(--bg); line-height:1.7; }
+  .wrap { max-width:920px; margin:0 auto; padding:40px 24px 80px; }
+  h1 { font-size:30px; line-height:1.25; margin:0 0 6px; }
+  h2 { font-size:22px; margin:38px 0 12px; padding-bottom:8px; border-bottom:2px solid var(--line); }
+  h3 { font-size:17px; margin:22px 0 8px; color:var(--brand); }
+  p { color:#1e293b; }
+  .lead { font-size:16px; color:var(--sub); }
+  .meta { font-size:13px; color:var(--sub); border:1px solid var(--line); background:#fff; border-radius:12px; padding:12px 16px; margin:16px 0 28px; }
+  .meta b { color:var(--ink); }
+  .card { border:1px solid var(--line); background:#fff; border-radius:14px; padding:18px 20px; margin:14px 0; }
+  .pill { display:inline-block; font-size:12px; font-weight:600; padding:2px 10px; border-radius:999px; margin-right:6px; }
+  .p-ok { background:#dcfce7; color:var(--ok); }
+  .p-warn { background:#fef3c7; color:var(--warn); }
+  .p-bad { background:#fee2e2; color:var(--bad); }
+  .p-info { background:#dbeafe; color:var(--brand); }
+  table { width:100%; border-collapse:collapse; margin:14px 0; font-size:14px; }
+  th,td { border:1px solid var(--line); padding:9px 11px; text-align:left; vertical-align:top; }
+  th { background:#f1f5f9; font-weight:600; }
+  code { background:#f1f5f9; padding:1px 6px; border-radius:6px; font-size:13px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+  pre { background:#0f172a; color:#e2e8f0; padding:16px 18px; border-radius:12px; overflow:auto; font-size:13px; line-height:1.55; }
+  pre .c { color:#7dd3fc; }
+  ul { padding-left:22px; } li { margin:5px 0; }
+  .callout { border-left:4px solid var(--brand); background:#eff6ff; padding:12px 16px; border-radius:0 10px 10px 0; margin:16px 0; }
+  .callout.warn { border-color:var(--warn); background:#fffbeb; }
+  .callout.ok { border-color:var(--ok); background:#f0fdf4; }
+  .src { font-size:13px; color:var(--sub); }
+  .src a { color:var(--brand); text-decoration:none; }
+  .src a:hover { text-decoration:underline; }
+  .foot { margin-top:40px; padding-top:16px; border-top:1px solid var(--line); font-size:12px; color:var(--sub); }
+  .tag { font-size:12px; color:var(--sub); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>C2PA 技术评估与商业模式修正</h1>
+  <p class="lead">面向 TrueLens（AI 内容真伪检测平台）的「内容凭证 / 溯源」技术路线评估，并给出商业模式定位升级建议。本篇是《AI 真伪辨识市场需求调研报告（2026）》的姊妹篇。</p>
+
+  <div class="meta">
+    <b>结论速览：</b>
+    <span class="pill p-info">C2PA = 内容来源与真实性联盟</span>
+    <span class="pill p-ok">验证端技术不难</span>
+    <span class="pill p-warn">签发端被大厂垄断</span>
+    <span class="pill p-ok">中国本地化+AI检测混合竞争小</span>
+    <span class="pill p-info">商业模式：定位升级，非推倒重写</span><br/>
+    <b>已落地：</b> 基于官方 <code>@contentauth/c2pa-node</code> 的 C2PA 验证原型已写入代码库并通过编译（见第 7 节）。
+  </div>
+
+  <h2>1. C2PA 是什么</h2>
+  <div class="card">
+    <p><b>全名：</b>Coalition for Content Provenance and Authenticity —— <b>内容来源与真实性联盟</b>。用户看到的产品化名字叫 <b>Content Credentials（内容凭证）</b>。</p>
+    <p><b>起源与治理：</b>2021 年 2 月由 <b>Adobe、Arm、BBC、Intel、Microsoft、Truepic</b> 六家创立；现由 <b>Joint Development Foundation</b> 管理。到 <b>2026 年 1 月成员已超 6000 家</b>（五年 1000 倍增长），覆盖媒体/新闻（~30%）、生产工具（~20%）、相机硬件（~15%）、AI 模型（~5%）、政府/标准机构（~10%）等。</p>
+    <p><b>它解决什么：</b>生成式 AI 让合成媒体在视觉上和真实媒体 indistinguishable。C2PA 的思路不是「事后检测假」，而是「<b>在创作那一刻证明真</b>」——把一张图/视频/音频的「谁、何时、用什么工具、是否被 AI 参与、经历了哪些编辑」写进文件本身，并用密码学签名绑定。</p>
+    <p><b>采用现状（截至 2026 年中）：</b></p>
+    <ul>
+      <li><b>相机厂</b>：徕卡 M11-P（首发内置）、索尼 α1/α7 IV/α9 III、佳能 EOS R5 II/R1、尼康 Z 系列、富士、松下——专业/新闻线优先。</li>
+      <li><b>AI 平台</b>：OpenAI（ChatGPT/DALL·E，2026-05 加入指导委员会，输出带 C2PA）、Google（Gemini/Imagen，SynthID+C2PA 双标）、Stability、Meta。</li>
+      <li><b>消费端突破</b>：三星 Galaxy S25 Ultra 首发原生相机 C2PA 签名（2025-02），把标准从专业小众推向大众；Google Pixel 10（2025-08）视频也支持。</li>
+      <li><b>平台内置验证</b>：YouTube（AI 生成内容强制永久标签）、LinkedIn、Google Photos 已能读 C2PA。</li>
+      <li><b>监管背书</b>：美国 CISA/NSA 2025-01 报告将内容凭证列为关键对策；🇪🇺 EU AI Act 第 50 条（2026-08 生效）点名 C2PA 为满足披露的技术机制之一。</li>
+    </ul>
+  </div>
+
+  <h2>2. 技术难度：关键看「你在哪一层」</h2>
+  <p>C2PA 工作分三段，难度天差地别。对 TrueLens 而言，<b>只做「验证」这一环</b>。</p>
+  <table>
+    <tr><th>环节</th><th>谁来做</th><th>难度</th><th>TrueLens 是否碰</th></tr>
+    <tr><td><b>签发 Signing</b><br/>用 CA 私钥给声明签名</td><td>相机厂 / Adobe / OpenAI</td><td><span class="pill p-bad">难</span> 需 X.509 证书链 + CA 基础设施 + 密钥管理 + 时间戳机构(TSA)</td><td>❌ 不做</td></tr>
+    <tr><td><b>嵌入 Embedding</b><br/>把签名 manifest 写进文件（JUMBF 容器）</td><td>同上</td><td><span class="pill p-warn">中</span></td><td>❌ 不做</td></tr>
+    <tr><td><b>验证 Verification</b><br/>读 manifest、验书链、比对 hard-binding 哈希</td><td>任意合规工具（含我们）</td><td><span class="pill p-ok">中低</span> 可离线验证，有成熟开源库</td><td>✅ <b>做这个</b></td></tr>
+  </table>
+  <div class="callout ok">
+    <b>为什么说验证「不难」：</b>验证可以<b>离线</b>完成（证书跟着文件走，不用连原签发方），且官方已提供多语言绑定库。TrueLens 是 Next.js，直接能用：
+    <ul>
+      <li><code>@contentauth/c2pa-node</code>（Node.js 绑定，v0.6.3，即 v2 继任者；旧的 <code>c2pa-node</code> 已废弃）</li>
+      <li><code>c2pa-js</code>（浏览器端轻量读取）</li>
+      <li><code>c2pa-python</code> / <code>c2pa-c</code> / <code>c2pa-ios</code> / 命令行 <code>c2patool</code></li>
+    </ul>
+    规范本身（v2.2 / 2025-05 稳定，v2.3 草稿）有几百页，但验证端只需调用库的一两个方法。
+  </div>
+  <p class="tag">核心 API（v2）：<code>Reader.fromAsset({ buffer, mimeType })</code> → <code>reader.json()</code> 取 manifest store、<code>reader.getActive()</code> 取活动 manifest、<code>reader.isEmbedded()</code> / <code>reader.remoteUrl()</code>。</p>
+
+  <h2>3. 竞争格局：分层看，别被「红海」吓退</h2>
+  <table>
+    <tr><th>层</th><th>竞争强度</th><th>说明</th><th>TrueLens 机会</th></tr>
+    <tr><td>① 签发 / 发证端</td><td><span class="pill p-bad">垄断</span></td><td>被 Adobe、相机厂、OpenAI、Google 把持，需 CA 基建与合规</td><td>❌ 不参与</td></tr>
+    <tr><td>② 通用验证端</td><td><span class="pill p-warn">商品化中</span></td><td>Adobe 自带 verify 工具、CAI 浏览器插件、YouTube/LinkedIn/Google Photos 平台内置验证</td><td>⚠️ 纯通用验证器空间被压缩</td></tr>
+    <tr><td>③ <b>中国本地化 + AI 检测混合验证</b></td><td><span class="pill p-ok">小</span></td><td>西方 C2PA 工具几乎无中文/中国本地化；中国有自有「标识办法 + 强制国标」，C2PA 只是满足披露的机制之一</td><td>✅ <b>主战场</b>：C2PA 验证 + Sightengine AI 检测 + 中文报告，卖「合规即服务」</td></tr>
+  </table>
+  <div class="callout">
+    <b>标准之战（SynthID vs C2PA）：</b>Google 的 <b>SynthID</b>（像素级隐形水印，能扛截图/裁剪）是 C2PA 的对手，但它是 <b>Google 专有、闭源检测、只对自家模型生效</b>；开源模型（Llama/Mistral/Stable Diffusion）塞不进 SynthID。C2PA 是<b>开放标准、可互操作、可离线验证</b>——对 TrueLens 反而更有利，且可与中国自有标准并行兼容。
+  </div>
+  <div class="callout warn">
+    <b>⚠️ 中国市场特有坑：</b>C2PA 依赖国际 X.509 CA 体系；国内可能要求「国产信任锚 + 自有强制标识国标」。做中国市场需<b>同时兼容 C2PA 与国内标准</b>——这恰好是 TrueLens 的差异化护城河，也是额外工作量。
+  </div>
+
+  <h2>4. 商业模式修正建议</h2>
+  <p>用户问「是否要修正 business model」——<b>要，但是「定位升级」，不是推倒重写</b>。</p>
+  <div class="card">
+    <h3>① 收费结构（credits / freemium / Pro / Business）—— 保持不变</h3>
+    <p>按次扣 credits 的模式本来就适合「验证一次 = 一次调用」，无需改。</p>
+    <h3>② 产品叙事 / GTM / 技术优先级 —— 要改</h3>
+    <p>从「<b>AI 假图检测器</b>」升级为「<b>内容真实性核验器（authenticity verifier）</b>」：</p>
+    <ul>
+      <li><b>双支柱</b>：AI 检测（抓明显假，Sightengine/PRNU）+ C2PA 验证（证实真）。</li>
+      <li><b>价值主张</b>从「我帮你看看是不是 AI 画的」→「我帮你<b>证明这内容可信 / 不可信，并满足合规</b>」。</li>
+      <li><b>B2B 合规即服务</b>：平台上传筛查 = C2PA 读取 + AI 检测 API，吃「国内标识办法 2025-09 已施行 + EU AI Act 2026-08 生效」的 deadline 红利窗口。</li>
+      <li><b>摄影防伪 niche</b>：比赛/原创性证明 = 「证明真」的软性证明（PRNU 相机指纹 + C2PA），不碰司法资质红线。</li>
+    </ul>
+    <h3>③ 明确不做</h3>
+    <p>自己当 CA / 签发端（证书基建重、合规重、且被大厂垄断）。<b>TrueLens 定位 = 验证消费方（verifier / reader），不是发证方（issuer）。</b></p>
+  </div>
+
+  <h2>5. 验证原型已落地（代码库内）</h2>
+  <p>作为「用 C2PA 跑原型」的实证，已把官方库接入 TrueLens 主干，并通过 <code>next build</code> 类型/打包校验。文件清单：</p>
+  <table>
+    <tr><th>文件</th><th>作用</th></tr>
+    <tr><td><code>lib/detectors/c2pa.ts</code>（新增）</td><td>封装 <code>@contentauth/c2pa-node</code> 的 <code>Reader</code>：读 manifest、提取签发者/创建时间/断言/AI 生成标记/校验状态；环境无原生库时优雅降级（<code>available:false</code>）</td></tr>
+    <tr><td><code>lib/analyzer.ts</code>（改）</td><td>主分析流程新增 C2PA 信号：有效凭证→「真实」证据并温和下调 AI 概率；凭证自述 AI 生成→「AI」证据并上调；校验失败→「可能被篡改」红旗</td></tr>
+    <tr><td><code>app/api/verify-c2pa/route.ts</code>（新增）</td><td>独立原型端点（Node runtime），上传图片即返回 C2PA 验证 JSON，便于单独演示/联调</td></tr>
+    <tr><td><code>app/api/detect/route.ts</code>（改）</td><td>主检测响应新增 <code>c2pa</code> 字段，所有用户可见</td></tr>
+    <tr><td><code>app/page.tsx</code>（改）</td><td>报告页新增「内容凭证（C2PA）」展示块（绿=有效真实 / 琥珀=自述 AI / 红=校验失败 / 灰=未检测到）</td></tr>
+    <tr><td><code>messages/zh.json</code> · <code>en.json</code>（改）</td><td>新增 <code>evidence.c2pa_*</code> 与 <code>result.c2pa_*</code> 中英双语文案</td></tr>
+  </table>
+  <div class="callout warn">
+    <b>⚠️ 上线前必读（原生二进制）：</b><code>@contentauth/c2pa-node</code> 是 <b>原生 Rust 插件</b>，<code>npm install</code> 时会从 GitHub Releases 下载对应平台的 <code>.node</code> 二进制。请在本机执行一次正常安装：
+    <pre><span class="c"># 在你本机 TrueLens 目录（Windows cmd）</span>
+set NODE_OPTIONS= && npm install
+<span class="c"># 或已装好依赖时，仅补二进制：</span>
+npm install @contentauth/c2pa-node</pre>
+    Vercel 部署时其 build 环境能拉取该二进制，运行时即生效。<b>沙箱环境因代理连不上 GitHub，无法下载二进制，故原型在沙箱内只能验证「编译通过 + 优雅降级」，真正跑出凭证解析需在你本机 / Vercel 上进行。</b>
+  </div>
+  <p>本地联调示例（本机装好原生库后）：</p>
+  <pre><span class="c"># 用独立端点验证一张带 C2PA 凭证的图</span>
+curl -F "image=@带凭证的图.jpg" https://localhost:3000/api/verify-c2pa</pre>
+
+  <h2>6. 资料来源与方法论</h2>
+  <h3>调查方法</h3>
+  <ul>
+    <li><b>官方源优先</b>：C2PA 官网与工具清单、npm 包页、GitHub 仓库 README/usage 文档。</li>
+    <li><b>采用现状交叉验证</b>：聚合多个 adoption 清单（相机固件时间表、AI 平台接入、媒体采用阶段），相互印证。</li>
+    <li><b>技术 API 以「装包后读真实类型声明」为准</b>：直接在 <code>node_modules/@contentauth/c2pa-node/dist/types/*.d.ts</code> 读取 <code>Reader</code> 真实接口，避免凭记忆拼 API。</li>
+    <li><b>原型实证</b>：把库真正接入代码库并跑通 <code>next build</code>，验证集成可行性。</li>
+    <li>市场规模 / 监管 / 融资部分沿用姊妹篇《AI 真伪辨识市场需求调研报告（2026）》的调研结论（EU AI Act 第 50 条、🇨🇳 标识办法+GB45438-2025、Reality Defender $52.4M / GetReal $17.5M 融资等）。</li>
+  </ul>
+  <h3>主要资料来源</h3>
+  <div class="src">
+    <p>[1] C2PA 官方 · What are Content Credentials — <a href="https://c2pa.org/?p=25">c2pa.org/?p=25</a></p>
+    <p>[2] C2PA 官方 · 工具与库（c2pa-rs / c2pa-node / c2pa-js / c2pa-python 等）— <a href="https://c2pa.wiki/tools/official">c2pa.wiki/tools/official</a></p>
+    <p>[3] C2PA 官方主页 — <a href="https://c2pa.org">c2pa.org</a></p>
+    <p>[4] c2paviewer.com · What is C2PA? (2026) — 采用现状、规范版本史、SynthID 对比 — <a href="https://c2paviewer.com/articles/what-is-c2pa">c2paviewer.com/articles/what-is-c2pa</a></p>
+    <p>[5] c2paviewer.com · Supported Devices & Services — 相机/AI 平台 C2PA 支持清单 — <a href="https://c2paviewer.com/supported-devices">c2paviewer.com/supported-devices</a></p>
+    <p>[6] minbook.dev · SynthID vs C2PA — 会员构成、采用拐点、标准战 — <a href="https://minbook.dev/en/blog/ai-trust-stack-synthid-vs-c2pa">minbook.dev/en/blog/ai-trust-stack-synthid-vs-c2pa</a></p>
+    <p>[7] truescreen.io · C2PA Standard in 2026: How It Works, Limitations — <a href="https://truescreen.io/articles/c2pa-standard-history-limitations/">truescreen.io/articles/c2pa-standard-history-limitations</a></p>
+    <p>[8] fauxlens.com · C2PA: The New Global Standard for Content Authenticity — <a href="https://fauxlens.com/blog/c2pa-content-authenticity-standard">fauxlens.com/blog/c2pa-content-authenticity-standard</a></p>
+    <p>[9] npm · @contentauth/c2pa-node（v0.6.3，现行；旧 <code>c2pa-node</code> 已废弃）— <a href="https://www.npmjs.com/package/@contentauth/c2pa-node">npmjs.com/package/@contentauth/c2pa-node</a></p>
+    <p>[10] 代码实证 · <code>node_modules/@contentauth/c2pa-node/dist/types/Reader.d.ts</code> 等真实类型声明</p>
+  </div>
+
+  <div class="foot">
+    本文档与《AI 真伪辨识市场需求调研报告（2026）》互为姊妹篇，供 TrueLens 产品/技术/商业决策内部参考。C2PA 技术路线仍处于早期（库的 API 标注为 "subject to change"），落地时以官方最新规范与库版本为准。
+  </div>
+
+</div>
+</body>
+</html>

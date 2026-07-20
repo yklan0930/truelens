@@ -339,6 +339,7 @@ export async function POST(request: NextRequest) {
         processingTimeMs: result.processingTimeMs,
         fileName: file.name,
         fileSize: file.size,
+        c2pa: result.engines.c2pa ?? null,
       },
       // Include auth/quota context for client
       auth: userId
