@@ -1,9 +1,1 @@
-{
-  "framework": "nextjs",
-  "buildCommand": "node scripts/ensure-c2pa-binary.mjs && next build",
-  "functions": {
-    "app/api/detect/route.ts": {
-      "maxDuration": 30
-    }
-  }
-}
+{"framework": "nextjs", "buildCommand": "export VERCEL_GIT_COMMIT_SHA=$(git rev-parse --short HEAD 2>/dev/null || echo '') && node scripts/ensure-c2pa-binary.mjs && next build", "functions": {"app/api/detect/route.ts": {"maxDuration": 30}}}
