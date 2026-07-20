@@ -22,7 +22,7 @@ export default function PricingPage() {
   const t = useT();
   const [me, setMe] = useState<Me | null>(null);
   const [loading, setLoading] = useState(true);
-  const [processing, setProcessing] = useState<PlanId | null>(null);
+  const [processing, setProcessing] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -41,21 +41,25 @@ export default function PricingPage() {
     refresh();
   }, [refresh]);
 
-  const handleUpgrade = async (plan: PlanId) => {
-    if (plan === "free") return;
-    setProcessing(plan);
+  const handlePurchase = async (productKey: string) => {
+    if (productKey === "free") return;
+    setProcessing(productKey);
     setMsg(null);
     try {
-      const res = await fetch("/api/checkout/mock", {
+      const res = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan }),
+        body: JSON.stringify({ productKey }),
       });
       const data = await res.json();
       if (!res.ok) {
         setMsg(data?.error || "error");
+      } else if (data.mode === "redirect" && data.url) {
+        // Real Polar checkout — send the user to Polar's hosted page.
+        window.location.href = data.url;
+        return; // page navigates away; no need to reset processing
       } else {
-        setMsg(t("pricing.grantSuccess", { plan, credits: data.credits }));
+        setMsg(t("pricing.grantSuccess", { plan: productKey, credits: data.credits }));
         await refresh();
       }
     } catch {
@@ -122,7 +126,7 @@ export default function PricingPage() {
 
               <button
                 disabled={isCurrent || processing !== null}
-                onClick={() => handleUpgrade(plan.id)}
+                onClick={() => handlePurchase(plan.id)}
                 className={`mt-6 rounded-lg px-4 py-2 text-sm font-medium transition ${
                   isCurrent
                     ? "bg-gray-200 text-gray-500 cursor-not-allowed"
@@ -143,7 +147,22 @@ export default function PricingPage() {
         })}
       </div>
 
-      <p className="mt-6 text-sm text-gray-500">{t("pricing.addon")}</p>
+      <div className="mt-6 flex items-center justify-between rounded-2xl border border-gray-200 p-6">
+        <div>
+          <h3 className="font-semibold">{t("pricing.addon")}</h3>
+          <p className="mt-1 text-sm text-gray-500">
+            {t("pricing.credits", { credits: ADDON.credits })}
+          </p>
+        </div>
+        <button
+          disabled={processing !== null}
+          onClick={() => handlePurchase("addon")}
+          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+        >
+          {`¥${ADDON.priceCny}`}
+          {processing === "addon" ? `…${t("pricing.processing")}` : ""}
+        </button>
+      </div>
       <p className="mt-4 text-xs text-amber-600 bg-amber-50 rounded-lg p-3">
         {t("pricing.mockNotice")}
       </p>

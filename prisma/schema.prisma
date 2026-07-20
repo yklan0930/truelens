@@ -171,3 +171,13 @@ model MonthlyOps {
   @@unique([month])
   @@map("monthly_ops")
 }
+
+/// Polar webhook idempotency (Layer B, overseas MoR). Each delivered Polar
+/// event id is recorded once so retries never double-grant credits/plans.
+model WebhookEvent {
+  id        String   @id // Polar event id (order/subscription/checkout)
+  type      String
+  createdAt DateTime @default(now())
+
+  @@map("webhook_events")
+}
