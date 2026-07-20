@@ -1,11 +1,12 @@
-// Pre-build step: writes git SHA into source and ensures C2PA native binary.
+// Pre-build step: writes git SHA into source.
 //
-// This script runs BEFORE `next build` so that:
-// 1. lib/generated-sha.ts contains the 7-char commit SHA (baked into the bundle,
-//    visible in the footer — works even when VERCEL_GIT_COMMIT_SHA is not set,
-//    e.g. CLI deployments or when Vercel's Git integration misses it).
-// 2. The @contentauth/c2pa-node native .node binary is present (downloaded from
-//    GitHub Releases if missing).
+// This script runs BEFORE `next build` so that lib/generated-sha.ts contains
+// the 7-char commit SHA (baked into the bundle, visible in the footer — works
+// even when VERCEL_GIT_COMMIT_SHA is not set, e.g. CLI deployments or when
+// Vercel's Git integration misses it).
+//
+// C2PA verification now uses @contentauth/c2pa-wasm (pure WASM, no native
+// binary), so no build-time binary download is needed.
 //
 // Usage:  node scripts/pre-build.mjs
 import { writeFileSync } from "node:fs";
@@ -34,11 +35,6 @@ const shaFileContent =
 writeFileSync(path.join(ROOT, "lib", "generated-sha.ts"), shaFileContent, "utf-8");
 console.log(`[pre-build] BUILD_SHA = "${sha || "(empty)"}"`);
 
-// ── 2. Ensure C2PA native binary ───────────────────────────────────
-try {
-  // Use file:// URL for cross-platform ESM compatibility (Windows needs it)
-  const c2paScriptUrl = new URL("ensure-c2pa-binary.mjs", import.meta.url);
-  await import(c2paScriptUrl);
-} catch (e) {
-  console.warn(`[pre-build] C2PA ensure script error (non-fatal): ${e?.message || e}`);
-}
+// ── 2. Pre-flight checks (non-fatal) ───────────────────────────────
+// C2PA now uses @contentauth/c2pa-wasm (pure WASM, no native binary),
+// so no build-time binary download is needed. Nothing to do here.

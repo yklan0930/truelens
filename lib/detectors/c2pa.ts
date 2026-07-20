@@ -1,19 +1,90 @@
 // C2PA / Content Credentials provenance verifier.
 //
-// Uses the official `@contentauth/c2pa-node` (v0.6.3, the v2 successor of the
-// deprecated `c2pa-node`). That package ships a NATIVE Rust addon (.node) which is
-// downloaded from GitHub Releases at `npm install` time. Environments that cannot
-// fetch that binary (or where it is simply absent) must degrade gracefully — this
-// module is written to do exactly that:
-//   - the native lib is loaded via `require()` (typed as `any`) so a missing
-//     `@contentauth/c2pa-types` declaration never breaks the build;
-//   - if `require` or `Reader.fromAsset` throws, we return `available:false`
-//     instead of crashing the analysis pipeline.
+// Uses the official `@contentauth/c2pa-wasm` (v0.6.3) — the PURE-WASM build of
+// the C2PA library. Unlike `@contentauth/c2pa-node` (which ships a NATIVE Rust
+// addon .node binary that must be downloaded from GitHub Releases and often
+// fails to install on hosts like Vercel), the WASM build is a single npm
+// package with no native binary, no postinstall, and works identically on
+// local machines, CI, and serverless (Vercel). This makes C2PA verification
+// reliable in production without build hacks.
 //
-// NOTE: this is a PROTOTYPE verifier. It reads the manifest and reports the
-// signer / assertions / validation status, but full cryptographic trust validation
-// depends on the native lib being present at runtime (user machine / Vercel).
+// Graceful degradation: if the WASM module cannot be loaded we return
+// `available:false` instead of crashing the analysis pipeline.
 import type { ServerLocale } from "@/lib/i18n/server";
+import { createRequire } from "node:module";
+import { readFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+
+// ── Node.js polyfills for @contentauth/c2pa-wasm ────────────────────────────
+// The WASM build was designed for browsers and relies on `FileReaderSync`
+// (a web-only API Node.js does not provide). It also calls `blob.slice()`
+// internally while reading. We:
+//   1. Provide a synchronous `FileReaderSync` whose `readAsArrayBuffer` pulls
+//      the bytes straight from the Blob we constructed (no async bridge — which
+//      would deadlock inside the WASM call stack).
+//   2. Subclass `Blob` so slices retain a reference to the original parts,
+//      letting the polyfill read them synchronously.
+import { Blob as NativeBlob } from "node:buffer";
+
+/** Flatten Blob parts into a single contiguous Uint8Array (sync, exact). */
+function flattenParts(parts: Array<unknown>): Uint8Array {
+  const bufs = (parts || []).filter(
+    (p) => p && typeof p === "object" && (p as ArrayBufferView).byteLength != null
+  ) as ArrayBufferView[];
+  if (!bufs.length) return new Uint8Array(0);
+  const total = bufs.reduce((n, b) => n + b.byteLength, 0);
+  const out = new Uint8Array(total);
+  let off = 0;
+  for (const b of bufs) {
+    out.set(new Uint8Array(b.buffer, b.byteOffset, b.byteLength), off);
+    off += b.byteLength;
+  }
+  return out;
+}
+
+// A Blob that keeps a synchronous, exact view of its bytes so that
+// FileReaderSync.readAsArrayBuffer returns PRECISELY the requested range —
+// including after .slice(). The previous implementation propagated the full
+// backing parts on slice(), which made every slice read the whole file and
+// caused c2pa-wasm to misread offsets (OutOfMemory / "bad chunk name").
+class SyncBlob extends NativeBlob {
+  _bytes: Uint8Array;
+  constructor(parts: Array<unknown>, options?: BlobPropertyBag) {
+    super(parts as any, options);
+    this._bytes = flattenParts(parts);
+  }
+  slice(start?: number, end?: number, contentType?: string): SyncBlob {
+    const s = this._bytes.subarray(start ?? 0, end ?? this._bytes.length);
+    return new SyncBlob([s], contentType ? { type: contentType } : undefined);
+  }
+}
+
+let polyfillInstalled = false;
+function installPolyfills(): void {
+  if (polyfillInstalled) return;
+  polyfillInstalled = true;
+
+  // FileReaderSync is absent in Node.js — provide a sync implementation that
+  // returns the EXACT bytes of the (possibly sliced) blob.
+  if (typeof (globalThis as any).FileReaderSync === "undefined") {
+    (globalThis as any).FileReaderSync = class {
+      readAsArrayBuffer(blob: any): ArrayBuffer {
+        const bytes: Uint8Array | undefined = blob?._bytes;
+        if (bytes && bytes.byteLength != null) {
+          // Copy into a fresh ArrayBuffer of exactly the right length.
+          return new Uint8Array(bytes).buffer;
+        }
+        // Fallback for non-SyncBlob blobs (e.g. propagated _parts).
+        const parts: Array<unknown> = blob?._parts;
+        if (Array.isArray(parts) && parts.length) {
+          const out = flattenParts(parts);
+          if (out.byteLength) return new Uint8Array(out).buffer;
+        }
+        throw new Error("FileReaderSync: cannot read blob synchronously");
+      }
+    };
+  }
+}
 
 export interface C2paResult {
   modelId: "c2pa";
@@ -49,22 +120,85 @@ export interface C2paResult {
   raw?: Record<string, unknown>;
 }
 
-// Loose handle to the native module — we never rely on its typed surface.
-type AnyModule = Record<string, any>;
+// Loose handle to the WASM module — we never rely on its typed surface.
+type WasmModule = {
+  // __wbg_init is the DEFAULT export of @contentauth/c2pa-wasm (the WASM
+  // bootstrap function). We call it with an explicit .wasm byte buffer so it
+  // works in Node.js serverless (Node's fetch() cannot load file:// URLs).
+  default?: (opts: { module_or_path: Uint8Array }) => Promise<unknown>;
+  WasmReader?: {
+    // The WASM build is typed against the DOM Blob, but in Node.js we pass a
+    // node:buffer-backed SyncBlob subclass. Its `bytes()` return type differs
+    // (Uint8Array<ArrayBufferLike> vs Uint8Array<ArrayBuffer>), so we loosen
+    // the parameter to `any` to avoid a spurious type conflict. The runtime
+    // contract (a Blob with readable bytes) is satisfied by SyncBlob.
+    fromBlob: (format: string, blob: any, context?: string | null) => Promise<any>;
+  };
+};
 
-let c2paMod: AnyModule | null = null;
+let c2paMod: WasmModule | null = null;
+let c2paInitPromise: Promise<WasmModule | null> | null = null;
 let c2paLoadError: string | null = null;
-function loadC2pa(): AnyModule | null {
+
+// Locate and read the c2pa_bg.wasm bytes. We try several strategies so the
+// detector works both in plain Node scripts and inside the Next.js production
+// bundle (where `import.meta.url`-based resolution can be unreliable and
+// `createRequire` may not be available the same way). The most robust for
+// `next start` / Vercel is the cwd-relative node_modules path.
+async function resolveWasmBytes(): Promise<Uint8Array> {
+  const candidates: string[] = [
+    join(process.cwd(), "node_modules/@contentauth/c2pa-wasm/pkg/c2pa_bg.wasm"),
+  ];
+  try {
+    const require = createRequire(import.meta.url);
+    candidates.push(
+      join(dirname(require.resolve("@contentauth/c2pa-wasm")), "c2pa_bg.wasm")
+    );
+  } catch {
+    /* createRequire unavailable in this context — cwd path still tried */
+  }
+
+  let lastErr: unknown;
+  for (const p of candidates) {
+    try {
+      const buf = await readFile(p);
+      if (buf && buf.length) return new Uint8Array(buf);
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw new Error(
+    "c2pa-wasm: could not locate c2pa_bg.wasm (tried " +
+      candidates.length +
+      " path(s)); last error: " +
+      String(lastErr)
+  );
+}
+
+async function loadC2pa(): Promise<WasmModule | null> {
   if (c2paMod) return c2paMod;
   if (c2paLoadError) return null;
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    c2paMod = require("@contentauth/c2pa-node") as AnyModule;
-  } catch (e: any) {
-    c2paLoadError = String(e?.message || e);
-    c2paMod = null;
-  }
-  return c2paMod;
+  if (c2paInitPromise) return c2paInitPromise;
+
+  c2paInitPromise = (async () => {
+    try {
+      const mod = (await import("@contentauth/c2pa-wasm")) as unknown as WasmModule;
+      if (typeof mod.default === "function") {
+        const wasmBytes = await resolveWasmBytes();
+        await mod.default({ module_or_path: new Uint8Array(wasmBytes) });
+      }
+      // Node.js lacks FileReaderSync (browser-only) which c2pa-wasm needs.
+      installPolyfills();
+      c2paMod = mod;
+      return mod;
+    } catch (e: any) {
+      c2paLoadError = String(e?.message || e);
+      c2paMod = null;
+      return null;
+    }
+  })();
+
+  return c2paInitPromise;
 }
 
 const AI_AGENT_RE =
@@ -139,42 +273,46 @@ export async function detectC2PA(
 ): Promise<C2paResult> {
   const base: C2paResult = { modelId: "c2pa", found: false, available: false };
 
-  const mod = loadC2pa();
-  if (!mod || typeof mod.Reader !== "function") {
-    return { ...base, available: false, error: c2paLoadError || "c2pa-native-unavailable" };
+  const mod = await loadC2pa();
+  if (!mod || typeof mod.WasmReader?.fromBlob !== "function") {
+    return { ...base, available: false, error: c2paLoadError || "c2pa-wasm-unavailable" };
   }
 
   const mimeType = opts.mimeType || guessMime(opts.filename);
   let reader: any = null;
   try {
-    const verifySettings =
-      typeof mod.createVerifySettings === "function"
-        ? mod.createVerifySettings({
-            verifyAfterReading: true,
-            verifyTrust: true,
-            verifyTimestampTrust: false,
-            ocspFetch: false,
-            remoteManifestFetch: false,
-          })
-        : undefined;
-    reader = await mod.Reader.fromAsset({ buffer: imageBuffer, mimeType }, verifySettings);
+    // Use SyncBlob so the FileReaderSync polyfill can read bytes synchronously
+    // AND so .slice() returns exact, in-range bytes (the WASM reader seeks by
+    // slicing the blob; a sloppy slice would corrupt the parse → OOM/bad chunk).
+    const blob = new SyncBlob([new Uint8Array(imageBuffer)]);
+    reader = await mod.WasmReader.fromBlob(mimeType, blob);
   } catch (e: any) {
-    return { ...base, available: true, error: String(e?.message || e) };
+    const msg = String(e?.message || e);
+    // A normal photo with no C2PA manifest throws rather than returning null.
+    // `JumbfNotFound` is c2pa-wasm's explicit "no manifest store here" signal;
+    // the others are malformed/unsupported-asset cases. Treat all as "not
+    // found" (graceful) instead of surfacing an error to the user.
+    if (/invalidasset|bad chunk|no matching|unsupported|parse|format|jumbf|notfound|no manifest/i.test(msg)) {
+      return { ...base, available: true, found: false };
+    }
+    return { ...base, available: true, error: msg };
   }
 
-  // No manifest present in this asset (the common case for ordinary photos).
+  // fromBlob returns null/undefined when no C2PA manifest store is present.
   if (!reader) {
     return { ...base, available: true, found: false };
   }
 
   try {
-    const store: any = reader.json?.() ?? {};
+    // reader.json() returns a JSON *string* in the WASM build.
+    const storeRaw: any = reader.json?.() ?? "{}";
+    const store: any = typeof storeRaw === "string" ? JSON.parse(storeRaw) : storeRaw;
     const manifests = asManifests(store);
     const activeLabel: string | undefined =
       (typeof reader.activeLabel === "function" ? reader.activeLabel() : undefined) ||
       store?.active_manifest;
     const active: any =
-      (typeof reader.getActive === "function" ? reader.getActive() : undefined) ||
+      (typeof reader.activeManifest === "function" ? reader.activeManifest() : undefined) ||
       (activeLabel ? manifests[activeLabel] : undefined);
 
     const found = !!active || Object.keys(manifests).length > 0;
