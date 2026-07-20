@@ -44,7 +44,8 @@ next-env.d.ts
 gh.zip
 gh_install/
 
-/lib/generated/prisma
+/lib/generated
+/lib/generated-sha.ts
 extension.crx
 
 # tesseract.js language data (downloaded at runtime from CDN; keep repo lean)
@@ -63,3 +64,5 @@ tests/_*.txt
 
 # local logo asset backups (not for repo)
 .logo-backup/
+
+.env*
