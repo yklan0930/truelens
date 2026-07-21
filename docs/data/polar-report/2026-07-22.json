@@ -1,0 +1,35 @@
+{
+  "_meta": {
+    "generatedAt": "2026-07-21T22:25:33.988Z",
+    "script": "scripts/pull-polar-data.mjs",
+    "polarEnv": "production"
+  },
+  "snapshot": {
+    "date": "2026-07-22",
+    "totalOrders": 0,
+    "paidOrders": 0,
+    "refundedOrders": 0,
+    "pendingOrders": 0,
+    "voidOrders": 0,
+    "totalSubscriptions": 0,
+    "activeSubscriptions": 0,
+    "canceledSubscriptions": 0,
+    "pastDueSubscriptions": 0,
+    "uniqueCustomers": 0
+  },
+  "revenue": {
+    "grossUSD": "0.00",
+    "netUSD": "0.00",
+    "taxUSD": "0.00",
+    "refundedUSD": "0.00",
+    "estimatedMonthlyMRR_USD": "0.00"
+  },
+  "breakdown": {
+    "oneTimePurchases": 0,
+    "subscriptionPayments": 0,
+    "oneTimeRevenueUSD": "0.00",
+    "subscriptionRevenueUSD": "0.00"
+  },
+  "recentOrders": [],
+  "recentSubscriptions": []
+}

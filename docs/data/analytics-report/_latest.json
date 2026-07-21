@@ -1,0 +1,102 @@
+{
+  "_meta": {
+    "generatedAt": "2026-07-21T22:25:35.742Z",
+    "script": "scripts/pull-vercel-analytics.mjs",
+    "projectId": "prj_UFADhuVjGdnV6mRAUzJyWzTKiqKw"
+  },
+  "snapshot": {
+    "date": "2026-07-22",
+    "period": {
+      "since": "2026-07-14",
+      "until": "2026-07-22"
+    },
+    "totalVisitors": 5,
+    "totalPageviews": 6,
+    "bounceRate": null
+  },
+  "daily": [
+    {
+      "date": "2026-07-14",
+      "visitors": 0,
+      "pageviews": 0
+    },
+    {
+      "date": "2026-07-15",
+      "visitors": 0,
+      "pageviews": 0
+    },
+    {
+      "date": "2026-07-16",
+      "visitors": 0,
+      "pageviews": 0
+    },
+    {
+      "date": "2026-07-17",
+      "visitors": 0,
+      "pageviews": 0
+    },
+    {
+      "date": "2026-07-18",
+      "visitors": 0,
+      "pageviews": 0
+    },
+    {
+      "date": "2026-07-19",
+      "visitors": 0,
+      "pageviews": 0
+    },
+    {
+      "date": "2026-07-20",
+      "visitors": 0,
+      "pageviews": 0
+    },
+    {
+      "date": "2026-07-21",
+      "visitors": 5,
+      "pageviews": 6
+    },
+    {
+      "date": "2026-07-22",
+      "visitors": 0,
+      "pageviews": 0
+    }
+  ],
+  "topPages": [
+    {
+      "path": "/",
+      "pageviews": 6,
+      "visitors": 5
+    }
+  ],
+  "topCountries": [
+    {
+      "country": "JP",
+      "pageviews": 3,
+      "visitors": 3
+    },
+    {
+      "country": "US",
+      "pageviews": 3,
+      "visitors": 2
+    }
+  ],
+  "topReferrers": [
+    {
+      "referrer": "Direct",
+      "pageviews": 6,
+      "visitors": 5
+    }
+  ],
+  "topDevices": [
+    {
+      "device": "desktop",
+      "pageviews": 3,
+      "visitors": 3
+    },
+    {
+      "device": "mobile",
+      "pageviews": 3,
+      "visitors": 2
+    }
+  ]
+}

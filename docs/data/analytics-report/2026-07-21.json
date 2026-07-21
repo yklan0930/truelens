@@ -1,0 +1,22 @@
+{
+  "_meta": {
+    "generatedAt": "2026-07-21T08:16:32.530Z",
+    "script": "scripts/pull-vercel-analytics.mjs",
+    "projectId": "prj_UFADhuVjGdnV6mRAUzJyWzTKiqKw"
+  },
+  "snapshot": {
+    "date": "2026-07-21",
+    "period": {
+      "since": "2026-07-14",
+      "until": "2026-07-22"
+    },
+    "totalVisitors": 0,
+    "totalPageviews": 0,
+    "bounceRate": null
+  },
+  "daily": [],
+  "topPages": [],
+  "topCountries": [],
+  "topReferrers": [],
+  "topDevices": []
+}
