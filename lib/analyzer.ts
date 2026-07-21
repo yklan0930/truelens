@@ -45,7 +45,7 @@ import { serverT, type ServerLocale } from "@/lib/i18n/server";
 
 export interface DetectionResult {
   aiProbability: number; // 0-100, final AI probability
-  verdict: "likely_ai" | "likely_real" | "uncertain";
+  verdict: "likely_ai" | "likely_real" | "likely_edited" | "uncertain";
   confidence: number; // 0-100
   engines: {
     huggingface?: HFDetectionResult;
@@ -334,42 +334,53 @@ export async function analyzeImage(
   }
   if (texture) engines.texture = texture;
 
-  // --- AI generation watermark (e.g. "图片由AI生成", "AI Generated") ---
-  // Strong DEFINITIVE signal in BOTH modes: an AI generator's own stamp proves
-  // the image is AI, so we boost (conservatively) wherever it appears.
-  let aiWatermark: AIWatermarkResult | null = null;
-  try {
-    aiWatermark = await detectAIWatermark(imageBuffer);
-  } catch {
-    aiWatermark = null;
-  }
-  if (aiWatermark?.found) {
-    engines.aiWatermark = aiWatermark;
-    aiProb = clamp(0.5 + (aiProb - 0.5) * 0.7 + 0.20, 0.01, 0.97);
-    evidence.push({
-      source: t("evidence.source_ai_watermark"),
-      type: "ai",
-      label: t("evidence.ai_watermark_detected"),
-      detail: t("evidence.ai_watermark_detected_detail", {
-        position: aiWatermark.position || "bottom",
-        confidence: aiWatermark.confidence,
-      }),
-    });
-    signals.push({
-      category: "format",
-      label: t("evidence.ai_watermark_detected"),
-      detail: t("evidence.ai_watermark_detected_detail", {
-        position: aiWatermark.position || "bottom",
-        confidence: aiWatermark.confidence,
-      }),
-      lean: "ai",
-      score: aiWatermark.confidence,
-    });
-  }
+  // --- AI generation watermark heuristic — SHELVED (2026-07-21) ----------
+  // The pure-JS pixel-pattern detector (detectAIWatermark) scans image corners
+  // for "text-like" bright clusters but CANNOT read actual text content. It has
+  // unacceptably high false-positive rates on real photos that happen to have
+  // bright edges / sparkles / clothing text in corner regions (e.g. a Disney
+  // night photo with star-sparkle effects and crowd lighting).
+  //
+  // Re-enable ONLY when we have a reliable OCR or ML-based solution that can
+  // read the literal watermark text ("图片由AI生成", "AI Generated", etc.)
+  // and verify it is indeed an AI-generator stamp.
+  //
+  // let aiWatermark: AIWatermarkResult | null = null;
+  // try {
+  //   aiWatermark = await detectAIWatermark(imageBuffer);
+  // } catch {
+  //   aiWatermark = null;
+  // }
+  // if (aiWatermark?.found) {
+  //   engines.aiWatermark = aiWatermark;
+  //   aiProb = clamp(0.5 + (aiProb - 0.5) * 0.7 + 0.20, 0.01, 0.97);
+  //   evidence.push({
+  //     source: t("evidence.source_ai_watermark"),
+  //     type: "ai",
+  //     label: t("evidence.ai_watermark_detected"),
+  //     detail: t("evidence.ai_watermark_detected_detail", {
+  //       position: aiWatermark.position || "bottom",
+  //       confidence: aiWatermark.confidence,
+  //     }),
+  //   });
+  //   signals.push({
+  //     category: "format",
+  //     label: t("evidence.ai_watermark_detected"),
+  //     detail: t("evidence.ai_watermark_detected_detail", {
+  //       position: aiWatermark.position || "bottom",
+  //       confidence: aiWatermark.confidence,
+  //     }),
+  //     lean: "ai",
+  //     score: aiWatermark.confidence,
+  //   });
+  // }
+  let aiWatermark: AIWatermarkResult | null = null; // shelved — see note above
 
   // --- Screen re-photography (annotation only) ---
+  // NOTE: aiWatermark heuristic is shelved, so the !aiWatermark?.found guard
+  // is always true. Screen analysis runs whenever aiProb > 0.5.
   let screen: ScreenResult | null = null;
-  if (aiProb > 0.5 && !aiWatermark?.found) {
+  if (aiProb > 0.5) {
     try {
       screen = await analyzeScreen(imageBuffer);
     } catch {
@@ -490,10 +501,12 @@ export async function analyzeImage(
       if (agree) confidence = Math.min(99, confidence + 10);
     }
 
-    const aiConfirmed = !!aiWatermark?.found && aiPercent >= 60;
-    if (aiConfirmed) {
-      verdict = "likely_ai";
-    } else if (aiPercent >= 70) {
+    // aiConfirmed (AI watermark heuristic) — SHELVED, see note above.
+    // const aiConfirmed = !!aiWatermark?.found && aiPercent >= 60;
+    // if (aiConfirmed) {
+    //   verdict = "likely_ai";
+    // } else
+    if (aiPercent >= 70) {
       verdict = "likely_ai";
     } else if (aiPercent <= 30) {
       verdict = "likely_real";
@@ -531,14 +544,32 @@ export async function analyzeImage(
     }
 
     const realThreshold = 35;
-    const aiConfirmed = !!aiWatermark?.found && aiPercentRaw >= 60;
-    if (aiConfirmed) {
-      verdict = "likely_ai";
-    } else if (aiPercentRaw <= realThreshold) {
+    // aiConfirmed (AI watermark heuristic) — SHELVED, see note above.
+    // const aiConfirmed = !!aiWatermark?.found && aiPercentRaw >= 60;
+    // if (aiConfirmed) {
+    //   verdict = "likely_ai";
+    // } else if
+    if (aiPercentRaw <= realThreshold) {
       verdict = "likely_real";
     } else {
       verdict = "uncertain";
     }
+  }
+
+  // --- "Real but edited" tier -------------------------------------------
+  // A retouch-app watermark (美图秀秀 / B612 / Photoshop …) or a beauty-app
+  // EXIF software field means this is a REAL photo someone edited or
+  // re-exported — distinct from both a pristine real photo and a fully
+  // AI-generated image. Route it to its own verdict, unless the image is
+  // clearly AI (definitive AI watermark, or Sightengine scores it high).
+  const hasWatermarkEdit = !!(watermark?.found && watermark.app);
+  const hasExifEdit = !!exif?.signals?.some((s) => s.key === "beauty_app_software");
+  if ((hasWatermarkEdit || hasExifEdit) && verdict !== "likely_ai" && aiPercentRaw < 65) {
+    verdict = "likely_edited";
+    // Confidence reflects how sure we are it was edited (explicit signal),
+    // not the residual AI probability.
+    const wmConf = watermark?.confidence;
+    confidence = hasWatermarkEdit && typeof wmConf === "number" ? Math.min(95, wmConf) : 80;
   }
 
   if (calibrationNote) {

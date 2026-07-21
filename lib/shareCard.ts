@@ -6,7 +6,7 @@
 // Minimal structural shape used by the share card — compatible with both the
 // client-side DetectionResult (subset) and the full analyzer result.
 export interface ShareCardResult {
-  verdict: "likely_ai" | "likely_real" | "uncertain";
+  verdict: "likely_ai" | "likely_real" | "likely_edited" | "uncertain";
   aiProbability: number;
   confidence: number;
   screenRephoto?: boolean;
@@ -20,6 +20,7 @@ export interface ShareCardLabels {
   verdictAi: string;
   verdictReal: string;
   verdictUncertain: string;
+  verdictEdited: string;
   aiProb: string;
   confidence: (c: number, ms: number) => string;
   cta: string;
@@ -32,7 +33,8 @@ export interface ShareCardLabels {
 const VERDICT_COLOR = {
   likely_ai: "#dc2626",
   likely_real: "#16a34a",
-  uncertain: "#d97706",
+  likely_edited: "#d97706",
+  uncertain: "#ca8a04",
 };
 
 function roundRect(
@@ -157,7 +159,9 @@ export async function generateShareCard(opts: {
       ? labels.verdictAi
       : result.verdict === "likely_real"
         ? labels.verdictReal
-        : labels.verdictUncertain;
+        : result.verdict === "likely_edited"
+          ? labels.verdictEdited
+          : labels.verdictUncertain;
 
   // Verdict pill
   ctx.font = "bold 20px system-ui, sans-serif";

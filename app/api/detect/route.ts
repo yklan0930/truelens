@@ -103,8 +103,13 @@ function isDatabaseConfigured() {
 }
 
 export async function POST(request: NextRequest) {
-  // Detect locale from request
-  const locale: ServerLocale = detectLocale(request.headers.get("accept-language"));
+  // Detect locale: prefer explicit frontend locale param (matches UI language),
+  // then fallback to Accept-Language header.
+  const urlLocale = request.nextUrl.searchParams.get("locale");
+  const rawLocale = (urlLocale === "en" || urlLocale === "zh")
+    ? urlLocale
+    : detectLocale(request.headers.get("accept-language"));
+  const locale: ServerLocale = rawLocale;
   const t = (key: string, params?: Record<string, string | number>) =>
     serverT(locale, key, params);
 

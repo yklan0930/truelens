@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useT } from "@/lib/i18n/context";
+import { useT, useLocale } from "@/lib/i18n/context";
 import { upload } from "@vercel/blob/client";
 import VideoResultCard from "./VideoResultCard";
 import type { VideoResult } from "@/lib/video/types";
@@ -15,6 +15,7 @@ const FRAME_COUNT = 8;
 
 export default function VideoDetection() {
   const t = useT();
+  const { locale } = useLocale();
   const [status, setStatus] = useState<Status>("idle");
   const [fileName, setFileName] = useState<string>("");
   const [fileSize, setFileSize] = useState<number>(0);
@@ -145,7 +146,7 @@ export default function VideoDetection() {
         }
 
         // 2. Submit the detection job.
-        const submitRes = await fetch("/api/detect-video", {
+        const submitRes = await fetch(`/api/detect-video?locale=${encodeURIComponent(locale)}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

@@ -58,7 +58,12 @@ const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500 MB hard cap (Sightengine Pro lim
 
 // POST /api/detect-video  body: { blobUrl?, engine?, fileName?, fileSize? }
 export async function POST(request: NextRequest) {
-  const locale: ServerLocale = detectLocale(request.headers.get("accept-language"));
+  // Detect locale: prefer explicit frontend locale param, fallback to Accept-Language
+  const urlLocale = request.nextUrl.searchParams.get("locale");
+  const rawLocale = (urlLocale === "en" || urlLocale === "zh")
+    ? urlLocale
+    : detectLocale(request.headers.get("accept-language"));
+  const locale: ServerLocale = rawLocale;
   const t = (key: string, params?: Record<string, string | number>) =>
     serverT(locale, key, params);
 

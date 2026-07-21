@@ -10,7 +10,7 @@
 
 export interface ExportPdfInput {
   aiProbability: number;
-  verdict: "likely_ai" | "likely_real" | "uncertain";
+  verdict: "likely_ai" | "likely_real" | "likely_edited" | "uncertain";
   confidence: number;
   evidence: { source: string; type: string; label: string; detail: string }[];
   signals?: { category: string; label: string; detail: string; lean: string; score?: number }[];
@@ -47,7 +47,9 @@ function verdictKey(v: string): string {
     ? "verdict_ai"
     : v === "likely_real"
       ? "verdict_real"
-      : "verdict_uncertain";
+      : v === "likely_edited"
+        ? "verdict_edited"
+        : "verdict_uncertain";
 }
 
 function typeColor(type: string): string {
@@ -103,7 +105,14 @@ function buildReportNode(input: ExportPdfInput): HTMLElement {
   }
 
   // Verdict box
-  const vColor = verdict === "likely_ai" ? C.red : verdict === "likely_real" ? C.green : C.amber;
+  const vColor =
+    verdict === "likely_ai"
+      ? C.red
+      : verdict === "likely_real"
+        ? C.green
+        : verdict === "likely_edited"
+          ? C.amber
+          : C.amber;
   const verdictBox = document.createElement("div");
   verdictBox.style.cssText = `border:1.5px solid ${vColor};border-radius:10px;padding:14px 16px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;`;
   const vLeft = document.createElement("div");

@@ -181,3 +181,20 @@ model WebhookEvent {
 
   @@map("webhook_events")
 }
+
+/// User feedback (emoji rating + free-text + detection context).
+/// Stored so staff can review and improve — surfaced in /admin/feedback.
+model Feedback {
+  id            String   @id @default(cuid())
+  type          String   // "emoji" | "detailed"
+  rating        String?  // "good" | "bad" (emoji); null for detailed
+  message       String?  @db.Text
+  resultContext Json?    // { aiProbability, verdict, fileName, processingTimeMs }
+  locale        String   @default("en")
+  userId        String?
+  email         String?
+  createdAt     DateTime @default(now())
+
+  @@index([createdAt])
+  @@map("feedback")
+}

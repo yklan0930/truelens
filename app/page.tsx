@@ -27,7 +27,7 @@ interface SignalItem {
 
 interface DetectionResult {
   aiProbability: number;
-  verdict: "likely_ai" | "likely_real" | "uncertain";
+  verdict: "likely_ai" | "likely_real" | "likely_edited" | "uncertain";
   confidence: number;
   evidence: Evidence[];
   signals?: SignalItem[];
@@ -465,7 +465,7 @@ export default function Home() {
         }
       })();
 
-      const res = await fetch("/api/detect", {
+      const res = await fetch(`/api/detect?locale=${encodeURIComponent(locale)}`, {
         method: "POST",
         body: formData,
       });
@@ -599,6 +599,7 @@ export default function Home() {
     verdictAi: t("result.verdict_ai_share"),
     verdictReal: t("result.verdict_real_share"),
     verdictUncertain: t("result.verdict_uncertain_share"),
+    verdictEdited: t("result.verdict_edited_share"),
     aiProb: t("share.cardAiProb"),
     confidence: (c, ms) => t("share.cardConfidence", { confidence: c, s: (ms / 1000).toFixed(2) }),
     cta: t("share.cardCta"),
@@ -686,7 +687,9 @@ export default function Home() {
           ? t("result.verdict_ai")
           : result.verdict === "likely_real"
             ? t("result.verdict_real")
-            : t("result.verdict_uncertain");
+            : result.verdict === "likely_edited"
+              ? t("result.verdict_edited")
+              : t("result.verdict_uncertain");
       if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
         const shareUrl = (await createShareLink()) ?? "https://truelens.top";
         await navigator.share({
@@ -757,12 +760,14 @@ export default function Home() {
     setTimeout(() => setCopied(false), 3000);
   };
 
-  const verdictLabel = (v: "likely_ai" | "likely_real" | "uncertain") =>
+  const verdictLabel = (v: "likely_ai" | "likely_real" | "likely_edited" | "uncertain") =>
     v === "likely_ai"
       ? t("result.verdict_ai")
       : v === "likely_real"
         ? t("result.verdict_real")
-        : t("result.verdict_uncertain");
+        : v === "likely_edited"
+          ? t("result.verdict_edited")
+          : t("result.verdict_uncertain");
 
   // --- Export PDF report (Pro / Business / Admin only) ---
   const handleExportPdf = async () => {
@@ -860,6 +865,13 @@ export default function Home() {
         borderColor: "border-green-200",
         icon: "✓",
       },
+      likely_edited: {
+        label: t("result.verdict_edited"),
+        color: "text-amber-600",
+        bgColor: "bg-amber-50",
+        borderColor: "border-amber-200",
+        icon: "✎",
+      },
       uncertain: {
         label: t("result.verdict_uncertain"),
         color: "text-yellow-600",
@@ -918,10 +930,10 @@ export default function Home() {
             </div>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
-            {/* Pricing link */}
+            {/* Pricing link — 核心变现入口，加大显眼度 */}
             <a
               href="/pricing"
-              className="text-sm text-slate-500 hover:text-slate-700 transition-colors min-h-[44px] px-2 flex items-center"
+              className="text-sm font-semibold text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition-colors min-h-[44px] px-3 rounded-lg flex items-center border border-indigo-200"
             >
               {t("pricing.title")}
             </a>
@@ -930,9 +942,9 @@ export default function Home() {
             <button
               onClick={toggleLocale}
               className="text-sm font-medium min-h-[44px] px-2 rounded-lg hover:bg-slate-100 transition-colors flex items-center gap-1"
-              title={locale === "zh" ? "Switch to English" : "切换为中文"}
+              title={locale === "zh" ? t("common.langTooltipZh") : t("common.langTooltipEn")}
             >
-              <span>{locale === "zh" ? "EN" : "中文"}</span>
+              <span>{locale === "zh" ? t("common.langSwitchZh") : t("common.langSwitchEn")}</span>
             </button>
 
             {history.length > 0 && (
@@ -1011,10 +1023,12 @@ export default function Home() {
                   <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent flex flex-col justify-end p-2">
                     <span
                       className={`text-xs font-bold ${
-                        item.verdict === "likely_ai"
-                          ? "text-red-300"
-                          : item.verdict === "likely_real"
-                            ? "text-green-300"
+                      item.verdict === "likely_ai"
+                        ? "text-red-300"
+                        : item.verdict === "likely_real"
+                          ? "text-green-300"
+                          : item.verdict === "likely_edited"
+                            ? "text-amber-300"
                             : "text-yellow-300"
                       }`}
                     >
@@ -1073,13 +1087,13 @@ export default function Home() {
                     <div className="aspect-[3/2] relative">
                       <img
                         src={currentChallenge.leftImage}
-                        alt={locale === "zh" ? "照片 A" : "Photo A"}
+                        alt={t("common.photoA")}
                         className="w-full h-full object-cover"
                       />
                       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
                     </div>
                     <div className="p-3 bg-slate-50 flex items-center justify-between">
-                      <span className="font-medium text-slate-700 text-sm">{locale === "zh" ? "照片 A" : "Photo A"}</span>
+                      <span className="font-medium text-slate-700 text-sm">{t("common.photoA")}</span>
                       <span className="text-xs text-indigo-600 font-medium opacity-0 group-hover:opacity-100 transition-opacity">
                         {t("challenge.aiLabel")}?
                       </span>
@@ -1094,7 +1108,7 @@ export default function Home() {
                     <div className="aspect-[3/2] relative">
                       <img
                         src={currentChallenge.rightImage}
-                        alt={locale === "zh" ? "照片 B" : "Photo B"}
+                        alt={t("common.photoB")}
                         className="w-full h-full object-cover"
                       />
                       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
@@ -1131,7 +1145,7 @@ export default function Home() {
                     <div className="aspect-[3/2] relative">
                       <img
                         src={currentChallenge.leftImage}
-                        alt={locale === "zh" ? "照片 A" : "Photo A"}
+                        alt={t("common.photoA")}
                         className="w-full h-full object-cover"
                       />
                       <div className={`absolute top-3 left-3 px-2.5 py-1 rounded-md text-white text-xs font-bold shadow-sm ${
@@ -1154,7 +1168,7 @@ export default function Home() {
                     <div className="aspect-[3/2] relative">
                       <img
                         src={currentChallenge.rightImage}
-                        alt={locale === "zh" ? "照片 B" : "Photo B"}
+                        alt={t("common.photoB")}
                         className="w-full h-full object-cover"
                       />
                       <div className={`absolute top-3 left-3 px-2.5 py-1 rounded-md text-white text-xs font-bold shadow-sm ${
@@ -1166,7 +1180,7 @@ export default function Home() {
                     <div className={`p-3 text-center text-sm font-medium ${
                       currentChallenge.aiSide === "right" ? "bg-red-50 text-red-700" : "bg-green-50 text-green-700"
                     }`}>
-                      {locale === "zh" ? "照片 B" : "Photo B"}
+                      {t("common.photoB")}
                     </div>
                   </div>
                 </div>
@@ -1408,7 +1422,9 @@ export default function Home() {
                         ? "bg-red-500"
                         : result.verdict === "likely_real"
                           ? "bg-green-500"
-                          : "bg-yellow-500"
+                          : result.verdict === "likely_edited"
+                            ? "bg-amber-500"
+                            : "bg-yellow-500"
                     }`}
                   />
 
@@ -1420,7 +1436,9 @@ export default function Home() {
                             ? "bg-red-100"
                             : result.verdict === "likely_real"
                               ? "bg-green-100"
-                              : "bg-yellow-100"
+                              : result.verdict === "likely_edited"
+                                ? "bg-amber-100"
+                                : "bg-yellow-100"
                         }`}
                       >
                         {verdictConfig[result.verdict].icon}
@@ -1918,6 +1936,14 @@ export default function Home() {
             >
               💬 {t("footer.feedback")}
             </a>
+            {isAdminUser && (
+              <a
+                href="/admin/feedback"
+                className="hover:text-indigo-500 transition-colors"
+              >
+                ⚙️ {t("footer.admin")}
+              </a>
+            )}
           </div>
         </div>
         </div>

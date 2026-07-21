@@ -15,7 +15,8 @@ type StoredPayload = {
 const VERDICT_STYLE: Record<string, { bg: string; text: string; border: string }> = {
   likely_ai: { bg: "bg-red-50", text: "text-red-700", border: "border-red-200" },
   likely_real: { bg: "bg-green-50", text: "text-green-700", border: "border-green-200" },
-  uncertain: { bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200" },
+  likely_edited: { bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200" },
+  uncertain: { bg: "bg-yellow-50", text: "text-yellow-700", border: "border-yellow-200" },
 };
 
 export default function SharedResultPage() {
@@ -48,6 +49,7 @@ export default function SharedResultPage() {
     verdictAi: t("result.verdict_ai_share"),
     verdictReal: t("result.verdict_real_share"),
     verdictUncertain: t("result.verdict_uncertain_share"),
+    verdictEdited: t("result.verdict_edited_share"),
     aiProb: t("share.cardAiProb"),
     confidence: (c, ms) => t("share.cardConfidence", { confidence: c, s: (ms / 1000).toFixed(2) }),
     cta: t("share.cardCta"),
@@ -128,10 +130,10 @@ export default function SharedResultPage() {
           <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center">
             <p className="text-slate-700 font-medium">{t("share.shareResult")}</p>
             <p className="text-sm text-slate-500 mt-2">
-              {locale === "zh" ? "该分享链接不存在或已失效。" : "This share link does not exist or has expired."}
+              {locale === "zh" ? t("share.linkExpired") : t("share.linkExpired")}
             </p>
             <Link href="/" className="mt-4 inline-block text-indigo-600 hover:underline">
-              {locale === "zh" ? "返回首页检测" : "Back to detection"}
+              {t("share.backToDetect")}
             </Link>
           </div>
         )}
@@ -160,7 +162,9 @@ export default function SharedResultPage() {
                       ? t("result.verdict_ai_share")
                       : r.verdict === "likely_real"
                         ? t("result.verdict_real_share")
-                        : t("result.verdict_uncertain_share")}
+                        : r.verdict === "likely_edited"
+                          ? t("result.verdict_edited_share")
+                          : t("result.verdict_uncertain_share")}
                   </p>
                   <p className="text-3xl font-bold text-slate-900 mt-1">
                     {r.aiProbability}%
@@ -218,7 +222,7 @@ export default function SharedResultPage() {
 
             <p className="mt-4 text-xs text-slate-400">
               <Link href="/" className="text-indigo-500 hover:underline">
-                {locale === "zh" ? "去 TrueLens 测测你自己的图片 →" : "Test your own image on TrueLens →"}
+                {t("share.testYourOwn")}
               </Link>
             </p>
           </div>

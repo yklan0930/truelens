@@ -1,8 +1,14 @@
 {
   "common": {
     "brand": "TrueLens",
-    "tagline": "AI 图片真伪检测",
-    "loading": "检测中..."
+    "tagline": "AI 内容真伪检测",
+    "loading": "检测中...",
+    "langSwitchZh": "EN",
+    "langSwitchEn": "中文",
+    "langTooltipZh": "Switch to English",
+    "langTooltipEn": "切换为中文",
+    "photoA": "照片 A",
+    "photoB": "照片 B"
   },
   "header": {
     "hideHistory": "隐藏历史",
@@ -14,8 +20,8 @@
     "unlimited": "无限次"
   },
   "hero": {
-    "title": "这张图片是真人拍的，还是 AI 生成的？",
-    "description": "上传图片，TrueLens 用多引擎交叉验证 + 元数据分析 + OCR 水印检测，给出 AI 味评分和证据。准确率约 95%，秒级出结果。"
+    "title": "你刷到的这张图，是真人拍的还是 AI 生成的？",
+    "description": "免费、无需注册，上传图片 2–3 秒给出「AI 味」评分和看得懂的证据。帮你一眼识破 AI 假图、核查素材真伪，不再被深度伪造忽悠。"
   },
   "challenge": {
     "title": "你能分辨哪张是经过 AI 处理的吗？",
@@ -58,9 +64,11 @@
     "verdict_ai": "可能是 AI 生成",
     "verdict_real": "可能是真实照片",
     "verdict_uncertain": "无法确定",
+    "verdict_edited": "真实但经过加工",
     "verdict_ai_share": "🤖 可能是 AI 生成",
     "verdict_real_share": "📸 可能是真实照片",
     "verdict_uncertain_share": "❓ 无法确定",
+    "verdict_edited_share": "🛠️ 真实但经过加工",
     "confidence": "置信度 {value}%",
     "aiProbability": "AI 味",
     "aiProbabilityHint": "数值越大越像 AI 生成",
@@ -113,7 +121,10 @@
     "cardScan": "扫码免费测",
     "cardWarning": "⚠️ 疑似屏幕翻拍，结果可能不准确",
     "exportPdf": "导出 PDF",
-    "exportingPdf": "导出中..."
+    "exportingPdf": "导出中...",
+    "linkExpired": "该分享链接不存在或已失效。",
+    "backToDetect": "返回首页检测",
+    "testYourOwn": "去 TrueLens 测测你自己的图片 →"
   },
   "social": {
     "title": "分享到社交平台",
@@ -189,37 +200,37 @@
   },
   "features": {
     "deepLearning": {
-      "title": "深度学习",
-      "desc": "多引擎交叉验证，综合像素特征、元数据与水印 OCR 多维度辨识"
+      "title": "多引擎交叉验证",
+      "desc": "像素痕迹 + 元数据分析 + 水印 OCR 三重交叉，比单模型更准、更少误判"
     },
     "exifAnalysis": {
-      "title": "元数据分析",
-      "desc": "检查 EXIF 相机信息、GPS、时间戳等元数据完整性"
+      "title": "看得见的证据",
+      "desc": "不只给结论，还展示 EXIF、C2PA 凭证、水印等可信线索，转发时附得上证据"
     },
     "fastResult": {
-      "title": "秒级出结果",
-      "desc": "多引擎并行检测，平均 2-3 秒返回概率评分和证据"
+      "title": "免费 · 秒级出结果",
+      "desc": "无需注册，2–3 秒拿到「AI 味」评分；手机端一键生成可分享的结果卡片"
     }
   },
   "howItWorks": {
-    "title": "如何工作",
-    "step1Title": "上传图片",
-    "step1Desc": "拖拽或选择任意 JPG、PNG、WebP 图片，也可以直接拍照",
-    "step2Title": "AI 分析",
-    "step2Desc": "TrueLens 多模态辨识引擎分析像素特征 + OCR 水印检测 + EXIF 元数据完整性检查",
-    "step3Title": "查看结果",
-    "step3Desc": "获得 AI 味评分评分、置信度和详细证据"
+    "title": "三步看清真假",
+    "step1Title": "上传图片或视频",
+    "step1Desc": "拖拽或选择任意 JPG、PNG、WebP 图片，也可直接拍照；视频支持 MP4 等常见格式",
+    "step2Title": "AI 多模态分析",
+    "step2Desc": "TrueLens 引擎分析像素痕迹 + OCR 水印检测 + EXIF / C2PA 元数据，覆盖 Midjourney、SD、FLUX 等",
+    "step3Title": "看评分，转发证据",
+    "step3Desc": "获得「AI 味」评分、置信度与详细证据，一键生成卡片分享到微信 / 小红书"
   },
   "faq": {
     "title": "常见问题",
     "q1": "TrueLens 的检测准确率是多少？",
     "a1": "TrueLens 在实测 17 图 QA 中达到约 95% 准确率（9 AI 图全识别、8 真实照零误判）。但 AI 生成技术在不断进步，实际场景准确率会有波动，任何检测工具都无法保证 100% 准确。TrueLens 的结果仅供参考，不作为法律证据。",
     "q2": "支持哪些图片格式？",
-    "a2": "支持 JPG、PNG、WebP 格式，文件大小不超过 10MB。视频检测功能正在开发中。",
+    "a2": "支持 JPG、PNG、WebP 图片（不超过 10MB），以及 MP4 / MOV / WebM 等常见视频格式。视频检测已上线：免费版可用基础引擎，Pro 版享高精度逐帧分析。",
     "q3": "我的图片会被保存吗？",
     "a3": "不会。图片仅在内存中处理用于检测，不会持久化存储到服务器磁盘。检测完成后图片数据立即销毁。",
     "q4": "免费用户每月可以检测几次？",
-    "a4": "免费用户每月享有 **3 次**高精度 AI 辨识额度（基于多引擎交叉验证）。用完后仍可继续使用基础模型检测，准确率会略低一些。Pro 版即将上线，提供更多高精度额度（¥39/月 500 次）、视频检测和详细报告等功能。",
+    "a4": "未登录游客每月 3 次高精度检测；注册免费账号后提升至每月 5 次。用完后可继续用基础模型检测（结果仅供参考）。需要更高额度、视频高精度与完整证据报告，可升级 Pro（¥39/月 500 次）或 Business（¥199/月 5000 次）。",
     "q5": "能检测哪些 AI 生成的图片？",
     "a5": "可以检测 Midjourney、DALL-E、Stable Diffusion、FLUX 等主流 AI 生成工具产出的图片。模型基于像素级特征分析，不依赖水印。",
     "q6": "如果有人去除水印或伪造 EXIF 怎么办？",
@@ -230,7 +241,21 @@
     "copyright": "truelens.top · v{version} · © 2026 Michael & 小毕",
     "github": "GitHub",
     "feedback": "反馈问题",
+    "admin": "后台",
     "copyrightEn": "truelens.top · v{version} · © 2026 Michael & 小毕"
+  },
+  "admin": {
+    "feedbackTitle": "用户反馈",
+    "back": "返回首页",
+    "empty": "暂无反馈",
+    "time": "时间",
+    "type": "类型",
+    "rating": "评分",
+    "message": "内容",
+    "context": "检测上下文",
+    "email": "用户",
+    "aiSmell": "AI味 {value}%",
+    "anonymous": "匿名"
   },
   "auth": {
     "login": "登录",
@@ -356,7 +381,7 @@
     "networkError": "网络连接失败，请检查网络后重试。",
     "genericError": "检测失败，请重试",
     "serverError": "服务器返回异常（可能是图片过大或网络问题），请重试或更换更小的图片",
-    "proComing": "Pro 版即将上线：每月 500 次高精度检测 + 视频检测 + 详细报告"
+    "proComing": "升级 Pro：每月 500 次高精度检测 + 视频检测 + 详细报告"
   },
   "api": {
     "rateLimit": "请求过于频繁，请稍后再试",
@@ -380,21 +405,21 @@
     "feedbackFailed": "反馈提交失败"
   },
   "metadata": {
-    "title": "TrueLens — AI 图片真伪检测",
-    "description": "上传图片，秒级判断是真人拍摄还是 AI 生成。基于深度学习模型 + EXIF 元数据分析，给出概率评分和证据。",
-    "ogTitle": "TrueLens — AI 图片真伪检测",
-    "ogDescription": "秒级判断图片是真人拍摄还是 AI 生成，给出概率评分和证据。",
-    "keywords": "AI检测, 图片真伪, deepfake, AI生成检测, TrueLens, AI图片识别"
+    "title": "TrueLens — 一秒看穿 AI 假图，免费 AI 图片/视频真伪检测",
+    "description": "TrueLens 免费在线 AI 图片/视频真伪检测。上传图片或视频，秒级给出「AI 味」评分与证据，帮你识破 AI 生成图、深度伪造与假新闻素材。支持 Midjourney、Stable Diffusion、FLUX、DALL·E 等。",
+    "ogTitle": "TrueLens — 免费 AI 图片/视频真伪检测，一秒看穿深度伪造",
+    "ogDescription": "上传图片或视频，秒级给出「AI 味」评分与看得懂的证据，帮你识破 AI 假图与假新闻。",
+    "keywords": "AI假图, 深度伪造, 假新闻, AI图片检测, AI视频检测, 图片鉴真, 内容核查, 谣言识别, 自媒体核查, AI生成检测, TrueLens"
   },
   "paywall": {
     "title": "专业检测报告",
     "desc": "完整证据链、各引擎信号明细与置信度校准说明，为 Pro 会员专属。免费用户仅显示判定结论与 AI 味。",
     "cta": "注册 / 升级查看",
-    "note": "Pro 会员即将上线，注册即可抢先体验"
+    "note": "升级 Pro 即可解锁完整证据链、视频高精度检测与专业报告。"
   },
   "pricing": {
     "title": "套餐与额度",
-    "subtitle": "升级解锁更多高精度检测额度",
+    "subtitle": "升级解锁更高精度额度、视频检测与专业报告",
     "perMonth": "/月",
     "free": { "name": "免费版" },
     "pro": { "name": "专业版" },
@@ -417,7 +442,7 @@
       "buy": "购买",
       "current": "当前套餐"
     },
-    "mockNotice": "演示模式：点击升级将直接授予额度，尚未接入真实支付（微信/支付宝）",
+    "mockNotice": "支付由 Polar 安全处理（信用卡 / 支付宝 / 微信），升级后检测额度即时到账。",
     "yourBalance": "当前余额：{credits} 次高精度",
     "loading": "加载中…",
     "processing": "处理中…",

@@ -42,14 +42,15 @@ export default function PricingPage() {
   }, [refresh]);
 
   const handlePurchase = async (productKey: string) => {
-    if (productKey === "free") return;
+    // Free "upgrade" → buy Pro
+    const actualKey = productKey === "free" ? "pro" : productKey;
     setProcessing(productKey);
     setMsg(null);
     try {
       const res = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productKey }),
+        body: JSON.stringify({ productKey: actualKey }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -95,6 +96,8 @@ export default function PricingPage() {
         {PLANS.map((plan) => {
           const isCurrent = me?.plan === plan.id;
           const isFree = plan.id === "free";
+          // Free users can always "upgrade" to Pro; only non-free plans show disabled "current"
+          const disableButton = !isFree && isCurrent;
           return (
             <div
               key={plan.id}
@@ -125,13 +128,13 @@ export default function PricingPage() {
               </ul>
 
               <button
-                disabled={isCurrent || processing !== null}
+                disabled={disableButton || processing !== null}
                 onClick={() => handlePurchase(plan.id)}
                 className={`mt-6 rounded-lg px-4 py-2 text-sm font-medium transition ${
-                  isCurrent
+                  disableButton
                     ? "bg-gray-200 text-gray-500 cursor-not-allowed"
                     : isFree
-                    ? "bg-gray-800 text-white hover:bg-gray-700"
+                    ? "bg-indigo-600 text-white hover:bg-indigo-700"
                     : "bg-blue-600 text-white hover:bg-blue-700"
                 }`}
               >
