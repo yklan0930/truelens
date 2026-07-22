@@ -298,6 +298,8 @@ export default function Home() {
   const [showHistory, setShowHistory] = useState(false);
   const [feedbackState, setFeedbackState] = useState<"none" | "good" | "bad" | "submitted">("none");
   const [exportingPdf, setExportingPdf] = useState(false);
+  const [enginePreference, setEnginePreference] = useState<"auto" | "premium" | "base">("premium"); // CEO ask: first-time users default to premium
+  const [engineUsed, setEngineUsed] = useState<"premium" | "base" | null>(null); // what the API actually used
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState("");
   const [shareLoading, setShareLoading] = useState(false);
@@ -407,6 +409,7 @@ export default function Home() {
     setLoading(true);
     setError(null);
     setBaseModelNotice(false);
+    setEngineUsed(null);
     setFeedbackState("none");
 
     try {
@@ -451,6 +454,7 @@ export default function Home() {
 
       const formData = new FormData();
       formData.append("image", blob, fileName);
+      formData.append("engine", enginePreference); // let user choose premium vs base
 
       // Browser-side OCR watermark scan — runs in parallel with the API call.
       // If Sightengine works it just enriches the report with literal watermark
@@ -523,6 +527,7 @@ export default function Home() {
       setUserPlan(data.auth?.plan || "free");
       setIsAdminUser(!!data.auth?.isAdmin);
       setBaseModelNotice(!!data.usedBaseModel);
+      setEngineUsed(data.engineUsed === "premium" ? "premium" : "base");
 
       if (data.auth?.authenticated) {
         if (data.auth.unlimited) {
@@ -1328,6 +1333,40 @@ export default function Home() {
                           : t("upload.quotaExhaustedBtn")}
                     </p>
                   </div>
+
+                  {/* Engine selector — CEO: first impression = premium by default */}
+                  <div className="mt-4">
+                    <div className="flex items-center gap-1.5 bg-slate-50 rounded-xl p-1 border border-slate-200 w-fit">
+                      <button
+                        onClick={() => setEnginePreference("premium")}
+                        disabled={loading}
+                        className={`px-3.5 py-2 rounded-lg text-xs font-medium transition-all min-h-[36px] ${
+                          enginePreference === "premium"
+                            ? "bg-indigo-600 text-white shadow-sm"
+                            : "text-slate-500 hover:text-slate-700"
+                        }`}
+                        title={t("upload.premiumHint")}
+                      >
+                        🔬 {t("upload.premium")}
+                      </button>
+                      <button
+                        onClick={() => setEnginePreference("base")}
+                        disabled={loading}
+                        className={`px-3.5 py-2 rounded-lg text-xs font-medium transition-all min-h-[36px] ${
+                          enginePreference === "base"
+                            ? "bg-slate-700 text-white shadow-sm"
+                            : "text-slate-500 hover:text-slate-700"
+                        }`}
+                        title={t("upload.baseHint")}
+                      >
+                        ⚡ {t("upload.base")}
+                      </button>
+                    </div>
+                    <p className="mt-1.5 text-xs text-slate-400">
+                      {enginePreference === "premium" ? t("upload.premiumHint") : t("upload.baseHint")}
+                    </p>
+                  </div>
+
                   <div className="mt-4 flex gap-3">
                     <button
                       onClick={handleDetect}
@@ -1486,6 +1525,27 @@ export default function Home() {
                     <span className="font-medium">{t("result.prob_ai")}</span>
                   </div>
                 </div>
+
+                {/* Engine badge — shows which detection engine was used */}
+                {engineUsed && (
+                  <div className={`rounded-xl p-3 text-xs flex items-start gap-2.5 ${
+                    engineUsed === "premium"
+                      ? "bg-indigo-50 border border-indigo-100 text-indigo-700"
+                      : "bg-slate-50 border border-slate-200 text-slate-600"
+                  }`}>
+                    <span className="text-base leading-none shrink-0">
+                      {engineUsed === "premium" ? "🔬" : "⚡"}
+                    </span>
+                    <div>
+                      <p className="font-medium">
+                        {engineUsed === "premium" ? t("result.enginePremium") : t("result.engineBase")}
+                      </p>
+                      <p className="mt-0.5 opacity-80">
+                        {engineUsed === "premium" ? t("result.enginePremiumDesc") : t("result.engineBaseDesc")}
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 {/* AI-generation watermark (browser-side OCR) — supplementary
                     evidence shown to ALL users: the literal watermark text is a

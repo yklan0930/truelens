@@ -51,7 +51,11 @@
     "quotaInfo": "本月免费高精度剩余 {quota} 次",
     "quotaExhaustedBtn": "免费次数已用完，仍可检测但建议升级 Pro",
     "detect": "开始检测",
-    "changeImage": "换一张"
+    "changeImage": "换一张",
+    "premium": "精密检测",
+    "base": "基础检测",
+    "premiumHint": "Sightengine 高精度模型，消耗 1 次额度",
+    "baseHint": "免费快速，结果仅供参考"
   },
   "history": {
     "title": "检测历史（最近 {count} 次）",
@@ -92,7 +96,12 @@
     "c2pa_tampered": "内容凭证校验失败",
     "c2pa_tampered_detail": "凭证签名校验未通过，文件可能被篡改或凭证无效。",
     "c2pa_unknown_agent": "未知生成工具",
-    "c2pa_unknown_signer": "未知签发者"
+    "c2pa_unknown_signer": "未知签发者",
+    "enginePremium": "🔬 精密检测",
+    "enginePremiumDesc": "由 Sightengine AI 模型分析，准确率≈95%",
+    "engineBase": "⚡ 基础检测",
+    "engineBaseDesc": "免费快速模式，结果仅供参考",
+    "engineCompare": "和精密版对比"
   },
   "share": {
     "shareResult": "分享结果",
@@ -401,6 +410,7 @@
     "hfCallFailed": "HF API 调用失败",
     "sightengineError": "辨识服务暂时不可用：{error}",
     "sightengineTimeout": "辨识服务响应超时，请稍后重试",
+    "noPremiumCredits": "免费高精度检测次数已用完。请登录账号获取更多额度，或选择「基础检测」模式继续检测。",
     "invalidFeedbackType": "无效的反馈类型",
     "feedbackFailed": "反馈提交失败"
   },

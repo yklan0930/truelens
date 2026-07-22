@@ -148,6 +148,7 @@ export async function POST(request: NextRequest) {
     // --- Parse form data ---
     const formData = await request.formData();
     const file = formData.get("image") as File | null;
+    const enginePref = (formData.get("engine") as string) || "auto"; // "auto" | "premium" | "base"
 
     if (!file) {
       return NextResponse.json(
@@ -267,6 +268,23 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await file.arrayBuffer();
     const imageBuffer = Buffer.from(arrayBuffer);
 
+    // --- Engine preference: let user choose premium vs base ---
+    // "premium" → force Sightengine; fail if credits exhausted
+    // "base"    → force base model regardless of credits
+    // "auto"    → existing logic (premium if credits available, else base)
+    if (enginePref === "base") {
+      useBaseOnly = true;
+    } else if (enginePref === "premium" && useBaseOnly) {
+      // User explicitly chose premium but has no credits — return actionable error
+      return NextResponse.json(
+        {
+          error: t("api.noPremiumCredits"),
+          suggestion: "login_or_upgrade",
+        },
+        { status: 402 }
+      );
+    }
+
     // --- Run analysis with locale and original filename ---
     // When the monthly high-precision grant is exhausted we degrade to the
     // zero-cost base model instead of blocking the user.
@@ -332,6 +350,7 @@ export async function POST(request: NextRequest) {
 
     const response = NextResponse.json({
       success: true,
+      engineUsed: useBaseOnly ? "base" : "premium", // tell UI which engine ran
       usedBaseModel: useBaseOnly,
       showDetailed,
       result: {

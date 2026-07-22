@@ -51,7 +51,11 @@
     "quotaInfo": "Free high-precision left this month: {quota}",
     "quotaExhaustedBtn": "Monthly high-precision quota used — now using base model. Consider upgrading to Pro.",
     "detect": "Start Detection",
-    "changeImage": "Change"
+    "changeImage": "Change",
+    "premium": "Precise",
+    "base": "Quick",
+    "premiumHint": "Sightengine high-precision model, costs 1 credit",
+    "baseHint": "Free & fast, results for reference only"
   },
   "history": {
     "title": "History (Last {count})",
@@ -92,7 +96,12 @@
     "c2pa_tampered": "Content Credentials validation failed",
     "c2pa_tampered_detail": "Signature validation did not pass — the file may have been tampered with or the credential is invalid.",
     "c2pa_unknown_agent": "unknown tool",
-    "c2pa_unknown_signer": "unknown signer"
+    "c2pa_unknown_signer": "unknown signer",
+    "enginePremium": "🔬 Precise Detection",
+    "enginePremiumDesc": "Analyzed by Sightengine AI, accuracy ≈95%",
+    "engineBase": "⚡ Quick Detection",
+    "engineBaseDesc": "Free & fast mode, results for reference only",
+    "engineCompare": "Compare with precise version"
   },
   "share": {
     "shareResult": "Share Result",
@@ -401,6 +410,7 @@
     "hfCallFailed": "HF API call failed.",
     "sightengineError": "Detection service unavailable: {error}",
     "sightengineTimeout": "Detection service timed out, please retry.",
+    "noPremiumCredits": "Your free high-precision quota is used up. Sign in to get more, or switch to base detection mode.",
     "invalidFeedbackType": "Invalid feedback type.",
     "feedbackFailed": "Failed to submit feedback."
   },
