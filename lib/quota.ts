@@ -19,9 +19,13 @@ export const MONTHLY_CREDITS: Record<Plan, number> = {
   business: 5000,
 };
 
-// Anonymous users get the same free grant, tracked via an httpOnly cookie
-// (no DB row). Server-enforced.
-export const ANON_MONTHLY_CREDITS = 3;
+// Anonymous users get a SMALL high-precision grant, tracked via an httpOnly
+// cookie (no DB row). Server-enforced.
+// NEW (CEO 2026-07-22): only the FIRST detection of the month may use
+// premium (best first impression); afterwards premium is greyed out and the
+// user falls back to the zero-cost base model.
+export const ANON_MONTHLY_CREDITS = 1; // anonymous MONTHLY premium grants
+export const ANON_DAILY_CAP = 1; // anonymous detections per DAY (hard cap)
 
 // Cost in credits per detection type.
 export const IMAGE_COST = 1;

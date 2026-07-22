@@ -55,7 +55,10 @@
     "premium": "Precise",
     "base": "Quick",
     "premiumHint": "High-precision multi-model cross-validation, costs 1 credit",
-    "baseHint": "Free & fast, results for reference only"
+    "baseHint": "Free & fast, results for reference only",
+    "premiumGreyedMonth": "Monthly premium checks used. Free base detection still available.",
+    "premiumGreyedPlan": "Monthly high-precision quota used. Upgrade to Pro to continue.",
+    "dailyLimit": "Already checked today (1/day limit). Come back tomorrow."
   },
   "history": {
     "title": "History (Last {count})",
@@ -411,6 +414,7 @@
     "sightengineError": "Detection service unavailable: {error}",
     "sightengineTimeout": "Detection service timed out, please retry.",
     "noPremiumCredits": "Your free high-precision quota is used up. Sign in to get more, or switch to base detection mode.",
+    "dailyLimit": "You've already checked today (1 per day). Come back tomorrow.",
     "invalidFeedbackType": "Invalid feedback type.",
     "feedbackFailed": "Failed to submit feedback."
   },

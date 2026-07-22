@@ -174,6 +174,60 @@ function getRemainingAnonQuota() {
   return Math.max(0, ANON_LIMIT - getMonthCount());
 }
 
+// Read the anonymous cookie (NOT httpOnly) so the UI can pre-grey the
+// premium button / disable detection on page load. The SERVER re-checks
+// this cookie on every request, so a forged client value can't grant
+// extra detections — this is UX-only, not enforcement.
+interface AnonCookieState {
+  month: string;
+  premiumUsed: number;
+  day: string;
+  dayUsed: number;
+}
+function readAnonCookieClient(): AnonCookieState {
+  if (typeof document === "undefined") return { month: "", premiumUsed: 0, day: "", dayUsed: 0 };
+  try {
+    const raw = document.cookie
+      .split("; ")
+      .find((c) => c.startsWith("tl_anon_credits="))
+      ?.split("=")[1];
+    if (!raw) return { month: "", premiumUsed: 0, day: "", dayUsed: 0 };
+    const o = JSON.parse(decodeURIComponent(raw));
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(
+      now.getDate()
+    ).padStart(2, "0")}`;
+    const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    return {
+      month: typeof o.m === "string" ? o.m : "",
+      premiumUsed: typeof o.pu === "number" ? o.pu : 0,
+      day: typeof o.d === "string" ? o.d : "",
+      dayUsed: o.d === today ? (typeof o.du === "number" ? o.du : 0) : 0,
+    };
+  } catch {
+    return { month: "", premiumUsed: 0, day: "", dayUsed: 0 };
+  }
+}
+
+// Derive engine gating from the server's auth payload (authoritative).
+function computeEngineGating(auth: any, isAuthed: boolean, t: (k: string, p?: Record<string, string | number>) => string) {
+  if (!auth) return { premiumDisabled: false, dayExhausted: false, premiumReason: "" };
+  if (!isAuthed) {
+    return {
+      dayExhausted: !!auth.dayUsed,
+      premiumDisabled: !!auth.premiumUsed,
+      premiumReason: auth.premiumUsed ? t("upload.premiumGreyedMonth") : "",
+    };
+  }
+  const remaining = auth.unlimited ? Infinity : (auth.credits ?? auth.monthlyRemaining ?? 0);
+  const disabled = !auth.unlimited && remaining < 1;
+  return {
+    dayExhausted: false,
+    premiumDisabled: disabled,
+    premiumReason: disabled ? t("upload.premiumGreyedPlan") : "",
+  };
+}
+
 // --- History helpers ---
 const HISTORY_KEY = "truelens_history";
 const MAX_HISTORY = 10;
@@ -300,6 +354,10 @@ export default function Home() {
   const [exportingPdf, setExportingPdf] = useState(false);
   const [enginePreference, setEnginePreference] = useState<"auto" | "premium" | "base">("premium"); // CEO ask: first-time users default to premium
   const [engineUsed, setEngineUsed] = useState<"premium" | "base" | null>(null); // what the API actually used
+  // Engine gating (derived from SERVER auth — never trust client):
+  const [premiumDisabled, setPremiumDisabled] = useState(false); // grey premium btn (monthly grant spent / credits 0)
+  const [premiumReason, setPremiumReason] = useState(""); // tooltip when greyed
+  const [dayExhausted, setDayExhausted] = useState(false); // anonymous daily cap hit → disable whole detect
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState("");
   const [shareLoading, setShareLoading] = useState(false);
@@ -324,6 +382,16 @@ export default function Home() {
     if (isAuthenticated) {
       setQuota(USER_LIMIT);
     } else {
+      // Pre-grey from the anon cookie (server-enforced, client-readable).
+      const ck = readAnonCookieClient();
+      const g = computeEngineGating(
+        { authenticated: false, premiumUsed: ck.premiumUsed, dayUsed: ck.dayUsed },
+        false,
+        t
+      );
+      setPremiumDisabled(g.premiumDisabled);
+      setPremiumReason(g.premiumReason);
+      setDayExhausted(g.dayExhausted);
       setQuota(getRemainingAnonQuota());
     }
     setHistory(getHistory());
@@ -495,6 +563,14 @@ export default function Home() {
       }
 
       if (!res.ok) {
+        // Apply engine gating from the server's auth payload (e.g. a 402
+        // for daily-limit or premium-exhausted) so the UI greys immediately.
+        if (data?.auth) {
+          const g = computeEngineGating(data.auth, !!data.auth?.authenticated, t);
+          setPremiumDisabled(g.premiumDisabled);
+          setPremiumReason(g.premiumReason);
+          setDayExhausted(g.dayExhausted);
+        }
         // Resilience: API/Sightengine failed, but OCR found an explicit
         // AI-generation watermark locally — surface a local likely_ai verdict.
         const ocr = await ocrPromise;
@@ -529,6 +605,12 @@ export default function Home() {
       setBaseModelNotice(!!data.usedBaseModel);
       setEngineUsed(data.engineUsed === "premium" ? "premium" : "base");
 
+      // Engine gating — derived from the SERVER auth payload (authoritative).
+      const g = computeEngineGating(data.auth, !!data.auth?.authenticated, t);
+      setPremiumDisabled(g.premiumDisabled);
+      setPremiumReason(g.premiumReason);
+      setDayExhausted(g.dayExhausted);
+
       if (data.auth?.authenticated) {
         if (data.auth.unlimited) {
           setQuota(9999); // sentinel; display uses authUnlimited
@@ -536,12 +618,8 @@ export default function Home() {
           setQuota(data.auth.monthlyRemaining);
         }
       } else {
-        // Anonymous: server tracks usage in an httpOnly cookie; use its count.
-        setQuota(
-          data.auth?.monthlyRemaining != null
-            ? data.auth.monthlyRemaining
-            : getRemainingAnonQuota()
-        );
+        // Anonymous: server tracks usage in a cookie; derive a soft status.
+        setQuota(g.dayExhausted || g.premiumDisabled ? 0 : 1);
       }
 
       // Store a small thumbnail (not the full base64) to avoid blowing the
@@ -1326,11 +1404,17 @@ export default function Home() {
                     <p className="text-sm text-slate-500 mb-1">{t("upload.fileName")}</p>
                     <p className="font-medium text-slate-900 truncate">{fileName}</p>
                     <p className="text-xs text-slate-400 mt-2">
-                      {authUnlimited
-                        ? t("upload.quotaInfo", { quota: "∞" })
-                        : quota > 0
-                          ? t("upload.quotaInfo", { quota })
-                          : t("upload.quotaExhaustedBtn")}
+                      {dayExhausted
+                        ? t("upload.dailyLimit")
+                        : premiumDisabled && !isAuthenticated
+                          ? t("upload.premiumGreyedMonth")
+                          : authUnlimited
+                            ? t("upload.quotaInfo", { quota: "∞" })
+                            : !isAuthenticated
+                              ? t("upload.premiumHint")
+                              : quota > 0
+                                ? t("upload.quotaInfo", { quota })
+                                : t("upload.quotaExhaustedBtn")}
                     </p>
                   </div>
 
@@ -1339,13 +1423,15 @@ export default function Home() {
                     <div className="flex items-center gap-1.5 bg-slate-50 rounded-xl p-1 border border-slate-200 w-fit">
                       <button
                         onClick={() => setEnginePreference("premium")}
-                        disabled={loading}
+                        disabled={loading || premiumDisabled}
                         className={`px-3.5 py-2 rounded-lg text-xs font-medium transition-all min-h-[36px] ${
-                          enginePreference === "premium"
-                            ? "bg-indigo-600 text-white shadow-sm"
-                            : "text-slate-500 hover:text-slate-700"
+                          premiumDisabled
+                            ? "bg-slate-100 text-slate-400 cursor-not-allowed line-through"
+                            : enginePreference === "premium"
+                              ? "bg-indigo-600 text-white shadow-sm"
+                              : "text-slate-500 hover:text-slate-700"
                         }`}
-                        title={t("upload.premiumHint")}
+                        title={premiumDisabled ? premiumReason : t("upload.premiumHint")}
                       >
                         🔬 {t("upload.premium")}
                       </button>
@@ -1363,11 +1449,22 @@ export default function Home() {
                       </button>
                     </div>
                     <p className="mt-1.5 text-xs text-slate-400">
-                      {enginePreference === "premium" ? t("upload.premiumHint") : t("upload.baseHint")}
+                      {premiumDisabled
+                        ? premiumReason
+                        : enginePreference === "premium"
+                          ? t("upload.premiumHint")
+                          : t("upload.baseHint")}
                     </p>
                   </div>
 
                   <div className="mt-4 flex gap-3">
+                    {dayExhausted && (
+                      <p className="flex-1 text-sm text-slate-500 flex items-center gap-2">
+                        <span>🕒</span>
+                        <span>{t("upload.dailyLimit")}</span>
+                      </p>
+                    )}
+                    {!dayExhausted && (
                     <button
                       onClick={handleDetect}
                       disabled={loading}
@@ -1400,6 +1497,7 @@ export default function Home() {
                         t("upload.detect")
                       )}
                     </button>
+                    )}
                     <button
                       onClick={handleReset}
                       className="px-5 py-3.5 border border-slate-300 text-slate-700 font-medium rounded-xl hover:bg-slate-50 transition-colors min-h-[48px] shrink-0"

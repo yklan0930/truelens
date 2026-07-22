@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth";
 import {
   monthlyLimitFor,
   ANON_MONTHLY_CREDITS,
+  ANON_DAILY_CAP,
   IMAGE_COST,
   monthKey,
   hasCredits,
@@ -79,19 +80,54 @@ function getClientIP(request: NextRequest): string {
   return "unknown";
 }
 
-// Read the anonymous monthly-credit counter from the httpOnly cookie.
-function readAnonCredits(request: NextRequest): { month: string; used: number } {
+// Anonymous state, tracked in an httpOnly cookie (client can't read/forge).
+//   m  = month key (YYYY-MM)            — resets premium grant monthly
+//   pu = premium-used flag (0|1)     — the 1 monthly premium grant
+//   d  = day key (YYYY-MM-DD)          — daily-cap window
+//   du = day-used flag (0|1)          — 1 detection already done today
+interface AnonCookie {
+  m: string;
+  pu: number;
+  d: string;
+  du: number;
+}
+
+function readAnonCookie(request: NextRequest): AnonCookie {
   try {
     const raw = request.cookies.get("tl_anon_credits")?.value;
-    if (!raw) return { month: "", used: 0 };
+    if (!raw) return { m: "", pu: 0, d: "", du: 0 };
     const o = JSON.parse(raw);
     return {
-      month: typeof o.m === "string" ? o.m : "",
-      used: typeof o.u === "number" ? o.u : 0,
+      m: typeof o.m === "string" ? o.m : "",
+      pu: typeof o.pu === "number" ? o.pu : 0,
+      d: typeof o.d === "string" ? o.d : "",
+      du: typeof o.du === "number" ? o.du : 0,
     };
   } catch {
-    return { month: "", used: 0 };
+    return { m: "", pu: 0, d: "", du: 0 };
   }
+}
+
+// Local day key (server timezone is fine — it's just a rolling 24h window
+// boundary; a few hours of skew across timezones is acceptable for a soft cap).
+function dayKey(d: Date = new Date()): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+    d.getDate()
+  ).padStart(2, "0")}`;
+}
+
+// Anonymous auth block returned to the client so the UI can grey the premium
+// button / disable detection without trusting the (forgeable) client.
+function anonAuthBlock(premiumUsed: number, dayUsed: boolean) {
+  return {
+    authenticated: false,
+    plan: "free",
+    premiumUsed, // 0 | 1 — drives premium-button greying
+    dayUsed, // 0 | 1 — drives whole-button disable
+    dailyCap: ANON_DAILY_CAP,
+    premiumMonthly: ANON_MONTHLY_CREDITS,
+    usedBaseModel: false,
+  };
 }
 
 // Allowed MIME types
@@ -201,13 +237,16 @@ export async function POST(request: NextRequest) {
     let monthlyUsed = 0;
     let credits = 0; // DB-backed balance for authenticated users (Layer A)
     let useBaseOnly = false; // true => run zero-cost base model (free grant used up)
+    let isAnon = false; // true => logged-out visitor (cookie-tracked)
 
-    const resolveAnon = () => {
-      const anon = readAnonCredits(request);
-      if (anon.month === monthKey()) monthlyUsed = anon.used;
-      monthlyLimit = ANON_MONTHLY_CREDITS;
-      if (!hasCredits(monthlyUsed, monthlyLimit, IMAGE_COST)) useBaseOnly = true;
-    };
+    // --- Anonymous state (read once; enforced server-side) ---
+    const anonCookie = readAnonCookie(request);
+    const todayKey = dayKey();
+    // Daily cap: 1 detection/day (CEO 2026-07-22). Resets across days.
+    const anonDayUsed = anonCookie.d === todayKey ? anonCookie.du : 0;
+    // Monthly premium grant: only the FIRST detection of the month may use
+    // premium (best first impression); afterwards premium is greyed out.
+    const anonPremiumUsed = anonCookie.m === monthKey() ? anonCookie.pu : 0;
 
     if (isDatabaseConfigured()) {
       try {
@@ -252,16 +291,52 @@ export async function POST(request: NextRequest) {
           if (!unlimited && (credits < IMAGE_COST || opsFull)) useBaseOnly = true;
         } else {
           // Logged-out visitor: cookie-based monthly counter.
-          resolveAnon();
+          isAnon = true;
         }
       } catch (dbError) {
         // Database error — gracefully degrade to anonymous mode.
         console.error("[TrueLens] DB error during auth check:", dbError);
-        resolveAnon();
+        isAnon = true;
       }
     } else {
       // No database configured (local dev) — anonymous cookie counter.
-      resolveAnon();
+      isAnon = true;
+    }
+
+    // --- Anonymous-only hard gates (CEO 2026-07-22) ---
+    // Run AFTER auth resolution; isAnon is true for every logged-out path.
+    if (isAnon) {
+      // DAILY CAP: 1 detection/day. Hard-block, no consumption —
+      // we don't want to burn the day's slot on a rejected request.
+      if (anonDayUsed) {
+        return NextResponse.json(
+          {
+            error: t("api.dailyLimit"),
+            suggestion: "tomorrow",
+            auth: anonAuthBlock(anonPremiumUsed, true),
+          },
+          { status: 402 }
+        );
+      }
+      if (enginePref === "premium") {
+        // Monthly premium grant is 1 — once used, premium is greyed out
+        // (the UI disables the button); if forced, return actionable 402.
+        if (anonPremiumUsed >= ANON_MONTHLY_CREDITS) {
+          return NextResponse.json(
+            {
+              error: t("api.noPremiumCredits"),
+              suggestion: "login_or_upgrade",
+              auth: anonAuthBlock(1, false),
+            },
+            { status: 402 }
+          );
+        }
+        // premium allowed — will consume the 1 monthly grant + today's slot
+      } else if (enginePref === "auto" && anonPremiumUsed >= ANON_MONTHLY_CREDITS) {
+        // First premium already spent this month → fall back to free base.
+        useBaseOnly = true;
+      }
+      // "base" → useBaseOnly handled by the block below.
     }
 
     // --- Convert File to Buffer (in memory, not persisted) ---
@@ -385,19 +460,34 @@ export async function POST(request: NextRequest) {
             isAdmin: false,
             plan: "free",
             showDetailed: false,
-            monthlyLimit: ANON_MONTHLY_CREDITS,
-            monthlyUsed: monthlyUsed + hpCost,
-            monthlyRemaining: ANON_MONTHLY_CREDITS - monthlyUsed - hpCost,
+            // Post-detection state: a detection just happened today, and the
+            // 1 monthly premium grant is spent if it ran premium.
+            premiumUsed: anonPremiumUsed || (!useBaseOnly ? 1 : 0),
+            dayUsed: true,
+            dailyCap: ANON_DAILY_CAP,
+            premiumMonthly: ANON_MONTHLY_CREDITS,
             usedBaseModel: useBaseOnly,
           },
     });
 
-    // Persist anonymous monthly counter in an httpOnly cookie (server-enforced).
+    // Persist anonymous state in an httpOnly cookie (server-enforced):
+    //   pu (premium used) flips to 1 once a premium detection runs,
+    //   du (day used) flips to 1 for today's daily-cap window.
     if (!userId) {
+      const ranPremium = !useBaseOnly;
       response.cookies.set(
         "tl_anon_credits",
-        JSON.stringify({ m: monthKey(), u: monthlyUsed + hpCost }),
-        { httpOnly: true, sameSite: "lax", maxAge: 60 * 60 * 24 * 32, path: "/" }
+        JSON.stringify({
+          m: monthKey(),
+          pu: anonPremiumUsed || (ranPremium ? 1 : 0),
+          d: todayKey,
+          du: 1,
+        }),
+        // NOT httpOnly on purpose: the client reads pu/du ONLY to grey the
+        // premium button / disable detection on page load. Enforcement
+        // still lives server-side (every request re-checks the cookie), so
+        // a forged client value cannot grant extra detections.
+        { httpOnly: false, sameSite: "lax", maxAge: 60 * 60 * 24 * 32, path: "/" }
       );
     }
 

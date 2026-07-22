@@ -55,7 +55,10 @@
     "premium": "精密检测",
     "base": "基础检测",
     "premiumHint": "高精度多模型交叉验证，消耗 1 次额度",
-    "baseHint": "免费快速，结果仅供参考"
+    "baseHint": "免费快速，结果仅供参考",
+    "premiumGreyedMonth": "本月精密检测已用完，基础检测免费可用",
+    "premiumGreyedPlan": "本月高精度额度已用完，升级 Pro 可继续使用",
+    "dailyLimit": "今日已检测（每天限 1 次），明天再来"
   },
   "history": {
     "title": "检测历史（最近 {count} 次）",
@@ -411,6 +414,7 @@
     "sightengineError": "辨识服务暂时不可用：{error}",
     "sightengineTimeout": "辨识服务响应超时，请稍后重试",
     "noPremiumCredits": "免费高精度检测次数已用完。请登录账号获取更多额度，或选择「基础检测」模式继续检测。",
+    "dailyLimit": "今日已检测，每天限 1 次，明天再来吧。",
     "invalidFeedbackType": "无效的反馈类型",
     "feedbackFailed": "反馈提交失败"
   },
