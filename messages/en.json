@@ -54,7 +54,7 @@
     "changeImage": "Change",
     "premium": "Precise",
     "base": "Quick",
-    "premiumHint": "Sightengine high-precision model, costs 1 credit",
+    "premiumHint": "High-precision multi-model cross-validation, costs 1 credit",
     "baseHint": "Free & fast, results for reference only"
   },
   "history": {
@@ -98,7 +98,7 @@
     "c2pa_unknown_agent": "unknown tool",
     "c2pa_unknown_signer": "unknown signer",
     "enginePremium": "🔬 Precise Detection",
-    "enginePremiumDesc": "Analyzed by Sightengine AI, accuracy ≈95%",
+    "enginePremiumDesc": "Multi-model cross-validation, accuracy ≈95%",
     "engineBase": "⚡ Quick Detection",
     "engineBaseDesc": "Free & fast mode, results for reference only",
     "engineCompare": "Compare with precise version"
@@ -169,7 +169,7 @@
     "paywallDesc": "Upgrade to view per-frame analysis, generation-engine clues and detailed evidence.",
     "upgrade": "Upgrade to view full evidence",
     "engineMock": "Demo mode (no detection engine configured)",
-    "engineSightengine": "TrueLens Video Detection Engine",
+    "engineVideo": "TrueLens Video Detection Engine",
     "duration": "Duration ~{s}s",
     "frames": "Analyzed {n} frames",
     "dropHint": "Drop or click to select a video",

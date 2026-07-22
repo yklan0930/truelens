@@ -54,7 +54,7 @@
     "changeImage": "换一张",
     "premium": "精密检测",
     "base": "基础检测",
-    "premiumHint": "Sightengine 高精度模型，消耗 1 次额度",
+    "premiumHint": "高精度多模型交叉验证，消耗 1 次额度",
     "baseHint": "免费快速，结果仅供参考"
   },
   "history": {
@@ -98,7 +98,7 @@
     "c2pa_unknown_agent": "未知生成工具",
     "c2pa_unknown_signer": "未知签发者",
     "enginePremium": "🔬 精密检测",
-    "enginePremiumDesc": "由 Sightengine AI 模型分析，准确率≈95%",
+    "enginePremiumDesc": "高精度多模型交叉验证，准确率≈95%",
     "engineBase": "⚡ 基础检测",
     "engineBaseDesc": "免费快速模式，结果仅供参考",
     "engineCompare": "和精密版对比"
@@ -169,7 +169,7 @@
     "paywallDesc": "升级后可查看逐帧分析、生成引擎线索等详细证据。",
     "upgrade": "升级查看完整证据",
     "engineMock": "演示模式（未配置检测引擎）",
-    "engineSightengine": "TrueLens 视频辨识引擎",
+    "engineVideo": "TrueLens 视频检测引擎",
     "duration": "时长约 {s} 秒",
     "frames": "分析 {n} 帧",
     "dropHint": "拖入或点击选择视频",
