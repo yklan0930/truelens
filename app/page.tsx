@@ -1302,6 +1302,31 @@ export default function Home() {
           </div>
         )}
 
+        {/* Quota / Rules Card — prominent, clear, CEO directive: no tiny text */}
+        {!image && mode === "image" && (
+          <div className="mb-5 bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-200 rounded-xl px-5 py-4 shadow-sm">
+            {!isAuthenticated ? (
+              <div className="space-y-2">
+                <p className="text-base font-bold text-indigo-800">{t("quotaRules.title")}</p>
+                <div className="space-y-1.5">
+                  <p className="text-sm text-slate-700">{t("quotaRules.anonPremium")}</p>
+                  <p className="text-sm text-slate-700">{t("quotaRules.anonBase")}</p>
+                  <p className="text-sm text-slate-700">{t("quotaRules.loginBonus")}</p>
+                </div>
+              </div>
+            ) : authUnlimited ? (
+              <p className="text-base text-indigo-800 font-bold">{t("quotaRules.loggedInUnlimited")}</p>
+            ) : (
+              <div className="space-y-1.5">
+                <p className="text-base font-bold text-indigo-800">{t("quotaRules.title")}</p>
+                <p className="text-sm text-slate-700">
+                  {t("quotaRules.loggedInFree", { credits: String(quota > 0 && quota < 9999 ? quota : 0) })}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Upload Area */}
         {!image && mode === "image" && (
           <div
@@ -1403,7 +1428,7 @@ export default function Home() {
                   <div>
                     <p className="text-sm text-slate-500 mb-1">{t("upload.fileName")}</p>
                     <p className="font-medium text-slate-900 truncate">{fileName}</p>
-                    <p className="text-xs text-slate-400 mt-2">
+                    <p className="text-sm text-slate-600 mt-2 font-medium">
                       {dayExhausted
                         ? t("upload.dailyLimit")
                         : premiumDisabled && !isAuthenticated
@@ -1448,7 +1473,7 @@ export default function Home() {
                         ⚡ {t("upload.base")}
                       </button>
                     </div>
-                    <p className="mt-1.5 text-xs text-slate-400">
+                    <p className="mt-1.5 text-sm text-slate-500">
                       {premiumDisabled
                         ? premiumReason
                         : enginePreference === "premium"

@@ -19,6 +19,14 @@
     "loginForMore": "登录享更多",
     "unlimited": "无限次"
   },
+  "quotaRules": {
+    "title": "使用规则",
+    "anonPremium": "🔬 首次检测使用精密引擎（免费，每月 1 次）",
+    "anonBase": "⏳ 之后基础引擎免费可用（每天限 1 次）",
+    "loginBonus": "🔐 注册登录：每月 5 次精密检测 · 升级 Pro 享 500 次 / 月",
+    "loggedInFree": "本月剩余 {credits} 次精密检测。用完后回落基础引擎，不限制次数。",
+    "loggedInUnlimited": "无限次精密检测"
+  },
   "hero": {
     "title": "你刷到的这张图，是真人拍的还是 AI 生成的？",
     "description": "免费、无需注册，上传图片 2–3 秒给出「AI 味」评分和看得懂的证据。帮你一眼识破 AI 假图、核查素材真伪，不再被深度伪造忽悠。"

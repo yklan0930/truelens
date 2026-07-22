@@ -19,6 +19,14 @@
     "loginForMore": "Sign in for more",
     "unlimited": "Unlimited"
   },
+  "quotaRules": {
+    "title": "How It Works",
+    "anonPremium": "🔬 First scan uses precision engine (free, 1/month)",
+    "anonBase": "⏳ Then quick scans free (1 per day limit)",
+    "loginBonus": "🔐 Sign up: 5 precision/month · Pro: 500/month",
+    "loggedInFree": "{credits} precision scans left this month. Free quick scans unlimited after.",
+    "loggedInUnlimited": "Unlimited precision scans"
+  },
   "hero": {
     "title": "Is this image real, or AI-generated?",
     "description": "Free, no sign-up. Upload an image and get an \"AI Likelihood\" score with clear evidence in 2–3 seconds — spot AI fakes, verify your sources, and stop getting fooled by deepfakes."
